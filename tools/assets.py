@@ -7,9 +7,11 @@ ROOT=Path(__file__).resolve().parents[1]
 # Studio mode is opt-in via env var. With it off, generation stays byte-identical
 # to the shipped assets/ GIFs so the repository's own contract tests keep passing.
 STUDIO=os.environ.get('RAINY75_STUDIO')=='1'
-BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(233,12,16,16),(264,17,20,8),(287,17,23,7)]
+BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(233,12,16,16),(264,17,20,8),(287,17,23,7),(214,14,13,9)]
 # Studio layout centres the big-key region inside the taller, RAINY-free card.
-# Only the y coordinate moves; all mask sizes (and the 1378-byte total) stay put.
+# Only the y coordinate moves; all mask sizes (and the mask total) stay put.
+# Region 5 is the caps-lock lamp+letter in the top bar, left of the connection
+# icon: filled disc + 'A' = caps on, hollow ring + 'a' = caps off.
 STUDIO_REGIONS=[(40,62,120,76),*BASE_REGIONS[1:]]
 REGIONS=BASE_REGIONS
 def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
@@ -21,11 +23,15 @@ def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
 # the full 16 px (a bare "2.4" left users unsure whether it meant 2.4 GHz);
 # Bluetooth is the rune.
 # Region, array shape and mask allocation are unchanged.
+MASK_TOTAL=1393
 ICONS=[
  [0,1632,1632,4080,2064,2064,2064,2064,2064,2064,4080,384,384,384,384,384],
  [0,0,0,0,0,24679,37032,4392,8683,16425,62503,0,0,0,0,0],
  [256,384,320,4384,2320,1312,832,384,384,832,1312,2320,4384,320,384,256],
 ]
+# Lowercase 'a' for the caps-off lamp (the 5x7 cache font only carries
+# uppercase ASCII, so the two case letters ship as their own 5x7 table).
+LOWER_A=('00000','01110','00001','01111','10001','01111','00000')
 def load(path):return json.loads(Path(path).read_text(encoding='utf8'))
 def load_themes():
  themes=load(ROOT/'profiles/themes.json')
@@ -99,7 +105,9 @@ def headers(keys,theme,out):
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
  rows+=['};','static const u16 connection_icons[3][16]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
- if offset!=1378:raise ValueError('Unexpected mask allocation')
+ case_a=[font['ascii']['A'],LOWER_A]
+ rows+=['static const u16 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
+ if offset!=MASK_TOTAL:raise ValueError('Unexpected mask allocation')
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
 def base_frame(theme,phase=0):
  im=Image.new('RGB',(320,172),theme['background']);d=ImageDraw.Draw(im)
@@ -152,6 +160,13 @@ def preview_frame(theme,keys,key=227):
  for yy,row in enumerate(ICONS[0]):
   for xx in range(16):
    if row&(1<<(15-xx)):d.point((233+xx,12+yy),fill=theme['ink'])
+ cx,cy=regions()[5][0],regions()[5][1]
+ for yy in range(7):
+  for xx in range(7):
+   if (xx-3)**2+(yy-3)**2<=10:d.point((cx+xx,cy+2+yy),fill=theme['ink'])
+ for yy,row in enumerate(font['A']):
+  for xx,cell in enumerate(row):
+   if cell=='1':d.point((cx+8+xx,cy+2+yy),fill=theme['ink'])
  gx,gy,gw,gh=regions()[0]
  g=next(g for g in keys['glyphs'] if g['key']==key);x=gx+(gw-len(g['rows'][0])*6)//2;y=gy+(gh-len(g['rows'])*6)//2
  for yy,row in enumerate(g['rows']):

@@ -6,10 +6,10 @@
 #define LCD_BUSY R(0x20001c6c)
 extern u8 __live_bss_start__,__live_bss_end__;
 static struct {
- u8 masks[1378];
- u32 pointer,object,time,key_at;
+ u8 masks[1393];
+ u32 pointer,object,time,key_at,caps_at;
  u16 x,y,w,h,key;
- u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers;
+ u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers,caps;
 } ui;
 static u32 clock_ms(void){return ((u32(*)(void))0x0803a2bb)();}
 static void zero(u8 *p,unsigned n){while(n--)*p++=0;}
@@ -70,10 +70,22 @@ static void status_masks(void){
  if(value>100)text(4,(const u8*)"--",2,1);
  else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(4,s,n,1);}
 }
+/* Caps lamp + case letter. Filled disc with 'A' = caps on, hollow ring with
+   'a' = caps off. Positioned by ui_geo[5], left of the connection icon. */
+static void caps_mask(void){
+ unsigned x,y;const u16 *g=case_glyphs[ui.caps?0:1];
+ clear(5);
+ for(y=0;y<7;y++)for(x=0;x<7;x++){
+  int dx=(int)x-3,dy=(int)y-3;unsigned d2=(unsigned)(dx*dx+dy*dy);
+  if(ui.caps){if(d2<=10u)dot(5,x,y+2);}
+  else if(d2<=10u&&d2>=5u)dot(5,x,y+2);
+ }
+ for(y=0;y<7;y++)for(x=0;x<5;x++)if(g[y]&(16u>>x))dot(5,8+x,y+2);
+}
 static void refresh(void){
  u32 t;u8 s[8];unsigned i,shift;
  if(ui.key_dirty){key_mask();ui.key_dirty=0;ui.dirty=1;}
- if(ui.status_dirty){status_masks();ui.status_dirty=0;ui.dirty=1;}
+ if(ui.status_dirty){status_masks();caps_mask();ui.status_dirty=0;ui.dirty=1;}
  t=rtc_value();if(t!=ui.time){
   ui.time=t;
   if(t==0xffffffffu)text(1,(const u8*)"--:--:--",8,2);
@@ -89,7 +101,7 @@ void rainy_hook_cached_draw(u16 x,u16 y,u16 w,u16 h,const u8 *p){
   if(LCD_BUSY)return;
   if(!ui.active){ui.active=1;ui.key_dirty=ui.status_dirty=1;ui.time=0xfffffffeu;}
   refresh();
-  for(i=0;i<5;i++){
+  for(i=0;i<6;i++){
    r=&ui_geo[i];x0=x>r->x?x:r->x;y0=y>r->y?y:r->y;x1=x+w<r->x+r->w?x+w:r->x+r->w;y1=y+h<r->y+r->h?y+h:r->y+r->h;
    for(py=y0;py<y1;py++)for(px=x0;px<x1;px++){
     bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?r->fg:r->bg;
@@ -111,7 +123,12 @@ void rainy_hook_image(void){
  refresh();
  if(!LCD_BUSY){((void(*)(void))0x0805b245)();if(!LCD_BUSY&&ui.dirty&&surface_matches())rainy_hook_cached_draw(ui.x,ui.y,ui.w,ui.h,(const u8*)ui.pointer);}
 }
-void rainy_hook_native_key(int key,unsigned raw5,unsigned raw6){ui.modifiers=(u8)raw6;if((u16)key){ui.key=(u16)key;ui.key_at=clock_ms();ui.key_dirty=1;}((void(*)(int,unsigned,unsigned))0x0805ac73)(key,raw5,raw6);}
+void rainy_hook_native_key(int key,unsigned raw5,unsigned raw6){
+ ui.modifiers=(u8)raw6;
+ if((u16)key==57&&(u32)(clock_ms()-ui.caps_at)>40u){ui.caps^=1u;ui.caps_at=clock_ms();ui.status_dirty=1;}
+ if((u16)key){ui.key=(u16)key;ui.key_at=clock_ms();ui.key_dirty=1;}
+ ((void(*)(int,unsigned,unsigned))0x0805ac73)(key,raw5,raw6);
+}
 void rainy_hook_native_status(unsigned battery,unsigned charge,unsigned mode){
  ui.battery=battery>100?100:(u8)battery;ui.charge=(u8)charge;ui.mode=(u8)mode;ui.known=1;ui.status_dirty=1;
  ((void(*)(unsigned,unsigned,unsigned))0x0805ae0b)(battery,charge,mode);
@@ -127,7 +144,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

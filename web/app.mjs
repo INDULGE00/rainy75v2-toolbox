@@ -15,7 +15,8 @@ function draw(){
  c.fillStyle=t.ink;c.beginPath();c.roundRect(24,48,152,104,12);c.fill();c.fillStyle=t.panel;c.beginPath();c.roundRect(27,51,146,98,9);c.fill();
  const g=current();cells(c,g.rows,40+(120-g.rows[0].length*6)/2,62+(76-g.rows.length*6)/2,6,t.ink);text(c,'12:34:56',16,13,2,t.ink);text(c,'84%',287,17,1,t.ink);
  c.strokeStyle=t.ink;c.lineWidth=1;c.strokeRect(264.5,17.5,16,7);c.fillStyle=t.ink;c.fillRect(267,20,10,3);c.fillRect(281,20,2,3);
- c.fillRect(251,58,8,7);c.fillRect(254,64,3,8);c.fillStyle=t.ink;c.beginPath();c.roundRect(218,70,75,51,8);c.fill();c.fillStyle=t.panel;c.beginPath();c.roundRect(221,73,69,45,6);c.fill();c.fillStyle=t.ink;c.fillRect(235,83,8,10);c.fillRect(268,83,8,10);c.fillRect(246,102,19,3);c.fillStyle=t.accent;c.fillRect(238,121,36,18);c.fillStyle=t.ink;c.fillRect(232,139,18,5);c.fillRect(262,139,18,5);
+ c.beginPath();c.arc(224,18,3.5,0,Math.PI*2);c.fill();text(c,'A',232,15,1,t.ink);
+ c.fillStyle=t.ink;c.fillRect(251,58,8,7);c.fillRect(254,64,3,8);c.fillStyle=t.ink;c.beginPath();c.roundRect(218,70,75,51,8);c.fill();c.fillStyle=t.panel;c.beginPath();c.roundRect(221,73,69,45,6);c.fill();c.fillStyle=t.ink;c.fillRect(235,83,8,10);c.fillRect(268,83,8,10);c.fillRect(246,102,19,3);c.fillStyle=t.accent;c.fillRect(238,121,36,18);c.fillStyle=t.ink;c.fillRect(232,139,18,5);c.fillRect(262,139,18,5);
  const grid=$('pixels').getContext('2d'),s=18,w=g.rows[0].length,h=g.rows.length,x=Math.floor((320-w*s)/2),y=Math.floor((220-h*s)/2);grid.fillStyle='#fffafc';grid.fillRect(0,0,320,220);
  g.rows.forEach((r,yy)=>[...r].forEach((v,xx)=>{grid.fillStyle=v==='1'?t.ink:'#f2dce6';grid.fillRect(x+xx*s,y+yy*s,s-1,s-1);}));
 }

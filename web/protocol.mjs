@@ -19,7 +19,11 @@ export const timeDifference=(a,b)=>((a-b+129600)%86400)-43200;
 export function decodeTime(raw){if(raw===0xffffffff)return null;const s=raw.toString(16).padStart(6,'0');if(!/^\d{6}$/.test(s))return null;const h=+s.slice(0,2),m=+s.slice(2,4),v=+s.slice(4,6);return h<24&&m<60&&v<60?{seconds:h*3600+m*60+v,text:`${s.slice(0,2)}:${s.slice(2,4)}:${s.slice(4,6)}`}:null;}
 export function validateGif(bytes){
  const signature=new TextDecoder().decode(bytes.subarray(0,6));
- if(!['GIF87a','GIF89a'].includes(signature)||bytes.length<13||bytes.length>4*1024*1024||((bytes[6]|bytes[7]<<8)!==320)||((bytes[8]|bytes[9]<<8)!==172))throw Error('请选择 320×172、大小不超过 4MiB 的 GIF');
+ const isGif=['GIF87a','GIF89a'].includes(signature)&&bytes.length>=13;
+ const w=isGif?bytes[6]|bytes[7]<<8:0,h=isGif?bytes[8]|bytes[9]<<8:0,mb=(bytes.length/1048576).toFixed(1);
+ if(!isGif)throw Error('这不是 GIF 文件（'+mb+' MB）：请选 .gif，不要选视频或图片');
+ if(w!==320||h!==172)throw Error(`GIF 尺寸是 ${w}×${h}，必须严格 320×172（${mb} MB）。原图请用「主题定制台」上传，它会自动裁切/缩放并按「动画体积上限」抽帧`);
+ if(bytes.length>4*1024*1024)throw Error(`GIF 有 ${mb} MB，超过 4 MB 上限：到「主题定制台」把「动画体积上限」调到 256/512 KB 重新生成`);
 }
 export async function sha256(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');}
 export const TARGETS={main:{pid:0x3079,base:0x2000,bytes:294912,boot:[0xbe,0xfc,4,0xed]},ips:{pid:0x3078,base:0x4000,bytes:507904,boot:[0xbe,0xfc,5,0,0xed]}};

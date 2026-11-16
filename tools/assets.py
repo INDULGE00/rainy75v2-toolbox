@@ -101,7 +101,6 @@ def headers(keys,theme,out):
  rows+=['};','static const u16 connection_icons[3][16]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
  if offset!=1378:raise ValueError('Unexpected mask allocation')
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
- (out/'lyrics_theme.h').write_text('/* SPDX-License-Identifier: MIT */\n'+''.join(f'#define {k} {rgb565(v)}u\n' for k,v in [('INK',theme['ink']),('BG',theme['background']),('MUTED',theme.get('muted',theme['accent'])),('TRACK',theme['shell']),('CARD',theme.get('lyricsBorder',theme['shell'])),('PAPER',theme.get('lyricsPanel',theme['panel'])),('ACCENT',theme['accent'])]),encoding='utf8')
 def base_frame(theme,phase=0):
  im=Image.new('RGB',(320,172),theme['background']);d=ImageDraw.Draw(im)
  if STUDIO:
@@ -163,7 +162,7 @@ def preview_frame(theme,keys,key=227):
 def save_cache_gif(frames,path,duration=120):
  # Keep the previous surface while the native decoder prepares the next frame.
  # Image.save(disposal=1) crops later frames even with optimize=False. Encode
- # each image explicitly so every frame also restores the lyrics marker.
+ # each image explicitly so every frame restores the clean background.
  indexed=[frame.quantize(colors=256) for frame in frames]
  header,_=GifImagePlugin.getheader(indexed[0],info={'loop':0})
  with Path(path).open('wb') as output:

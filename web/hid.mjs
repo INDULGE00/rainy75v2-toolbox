@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import {VID,APP_PID,MAIN_CAP,IPS_CAP,ACK_READ,parseAck,command,frame,crc16,localSeconds,timeDifference,decodeTime,validateGif,TARGETS} from './protocol.mjs';
-import {validateFont} from './font.mjs';
 export const wait=ms=>new Promise(r=>setTimeout(r,ms));
 export function reportLength(reports,length){return reports?.some(r=>r.reportId===0&&r.items.reduce((n,i)=>n+i.reportSize*i.reportCount,0)/8===length);}
 export function validDevice(device,pid,length){return device?.vendorId===VID&&device.productId===pid&&device.collections?.some(c=>c.usagePage===0xff60&&c.usage===0x61&&reportLength(c.outputReports,length)&&reportLength(c.inputReports,length));}
@@ -49,11 +48,6 @@ export class AppClient{
  }
  async queryMain(f){return (await this.request(15,f,[],a=>a.status===0xd0+f)).value;}
  async queryIps(f){return (await this.request(11,f,[],a=>a.status===0xb0+f)).value;}
- async probeLyricsTarget(){
-  if(await this.queryMain(9)!==MAIN_CAP||await this.queryIps(0)!==IPS_CAP)throw Error('请先安装匹配的主控 V7.1 与本版普通 IPS');
-  const flashKiB=await this.queryIps(14),series=await this.queryIps(15);
-  if(flashKiB!==1024||series!==13)throw Error('歌词版只支持已读取确认的 1024KiB AT32F435');return{flashKiB,series};
- }
  async status(){
   const mainCap=await this.queryMain(9);if(mainCap!==MAIN_CAP)throw Error('主控不是支持的 V7.1，未进行写入');
   const ipsCap=await this.queryIps(0);if(ipsCap!==IPS_CAP)throw Error('屏幕不是支持的 L6，未进行写入');
@@ -107,42 +101,6 @@ export class AppClient{
    await this.stock(3,0,0,0,[crc&255,crc>>>8],chunkTimeout);ok=true;
   }finally{if(!ok)try{await this.stock(4);}catch{}await this.control(5);}
  }
- async _removeFont(previous){
-  const query=async field=>(await this.request(22,field,[],a=>a.status===0xc0+field)).value;
-  const p=new Uint8Array(12),v=new DataView(p.buffer);p.set(new TextEncoder().encode('FNT!'));v.setUint32(4,previous.bodyCrc,true);v.setUint32(8,previous.bytes,true);const id=++this.seq&65535;
-  await this.request(27,id,p,a=>a.status===0&&a.value===id);
-  const start=this.now();let state;while((state=await query(9))===2){if(this.now()-start>8000)throw Error('字库移除工作线程超时');await this.pause(25);}
-  if(state!==1){const result=await query(10);throw Error(result===254?'旧字库不匹配，未移除':'字库移除失败，状态 '+result);}
- }
- async deleteFont(bytes,{deleteConfirmed=false}={}){
-  if(deleteConfirmed!==true)throw Error('请先确认仅删除屏内 FONT.BIN');const previous=validateFont(bytes);
-  await this.request(24,1,[],a=>a.status===0xa6&&a.value===0x4c59);
-  try{await this.request(22,9,[],a=>a.status===0xc9);}catch{throw Error('无法确认字库删除接口，请检查连接和歌词固件版本');}
-  let suspended=false;
-  try{await this.control(2);suspended=true;await this._removeFont(previous);return{deleted:true};}
-  finally{if(suspended)await this.control(5);}
- }
- async uploadFont(bytes,{replaceConfirmed=false,replaceExisting=false,previousFont,progress=()=>{}}={}){
-  if(!replaceConfirmed)throw Error('请先确认写入或替换 FONT.BIN');const font=validateFont(bytes);
-  if(replaceExisting&&!previousFont)throw Error('替换需要当前屏内版本的旧 FONT.BIN');
-  if(!replaceExisting&&previousFont)throw Error('请明确选择替换已有字库');
-  const previous=replaceExisting?validateFont(previousFont):null;
-  await this.request(24,1,[],a=>a.status===0xa6&&a.value===0x4c59);
-  const low=(await this.request(22,5,[],a=>a.status===0xc5)).value,high=(await this.request(22,6,[],a=>a.status===0xc6)).value;
-  if(high*65536+low!==font.bodyCrc)throw Error('字库与屏幕固件不匹配，未写入');
-  const query=async field=>(await this.request(22,field,[],a=>a.status===0xc0+field)).value;
-  if(previous)try{await query(9);}catch{throw Error('当前歌词固件缺少字库替换接口，请先更新固件');}
-  const crc=crc16(bytes),begin=new Uint8Array(17);begin.set(new TextEncoder().encode('FONT    BIN'));new DataView(begin.buffer).setUint32(11,bytes.length,true);new DataView(begin.buffer).setUint16(15,crc,true);
-  let ok=false,suspended=false,started=false;
-  try{
-   await this.control(2);suspended=true;
-   if(previous)await this._removeFont(previous);
-   started=true;
-   await this.stock(1,0,0,0,begin);
-   for(let offset=0,seq=0;offset<bytes.length;offset+=232,seq++){await this.stock(2,seq&255,seq>>>8,0,bytes.subarray(offset,offset+232));progress(Math.min(1,(offset+232)/bytes.length));}
-   await this.stock(3,0,0,0,[crc&255,crc>>>8]);ok=true;
-  }finally{if(started&&!ok)try{await this.stock(4);}catch{}if(suspended)await this.control(5);}
- }
  async enterIap(target){const t=TARGETS[target];if(!t)throw Error('Unknown target');await this.io.send(new Uint8Array(t.boot));await this.close();}
 }
 export class FlashClient{
@@ -151,7 +109,6 @@ export class FlashClient{
  async ok(p,timeout=5000){const r=await this.io.exchange(p,()=>true,timeout,2);if(r.length<2||r[0]||r[1])throw Error('烧录应答失败：'+r[0]+','+r[1]);}
  async flash(progress=()=>{}){
   const {bytes,base,pid}=this.plan;if(!validDevice(this.io.device,pid,64))throw Error('目标错误，未擦除');
-  if(this.plan.variant==='lyrics-v1'&&!this.plan.hardwareChecked)throw Error('请先在 APP 模式读取并核对歌词版芯片信息，未擦除');
   const erase=new Uint8Array(6);erase[0]=0x81;new DataView(erase.buffer).setUint32(2,base,true);
   progress('擦除',0);
   try{await this.ok(erase,20000);}catch(e){throw Error('擦除阶段：'+e.message+'；设备可能仍在升级模式，未确认擦除结果。');}await this.pause(1200);

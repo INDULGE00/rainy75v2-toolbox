@@ -4,7 +4,6 @@ const $ = id => document.getElementById(String(id).replace(/^#/, ''));
 const COLOR_FIELDS = [
   ['background', '整屏底色'], ['panel', '键帽 / 面板底色'], ['shell', '外边框 / 阴影'],
   ['ink', '文字与线条'], ['accent', '点缀色'],
-  ['lyricsBorder', '歌词页边框（可选）'], ['lyricsPanel', '歌词页底色（可选）'],
 ];
 const SEQ = {
   turn: [0, 0, 1, 1, 2, 2, 1, 1],

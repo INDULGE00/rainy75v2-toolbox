@@ -36,7 +36,7 @@ STOCK_ACCEPT = {
     'ips': {'sizes': {502925, 507904}, 'sha': IPS_STOCK_SHA, 'hint': '502,925 B 的原厂提取件'},
     'main': {'sizes': {284492, 294912}, 'sha': None, 'hint': '284,492 B 的原厂提取件'},
 }
-COLOR_FIELDS = ('background', 'panel', 'shell', 'ink', 'accent', 'lyricsBorder', 'lyricsPanel')
+COLOR_FIELDS = ('background', 'panel', 'shell', 'ink', 'accent')
 REQUIRED_COLORS = ('background', 'panel', 'shell', 'ink', 'accent')
 LOCK = threading.Lock()
 _SERVER = None  # set by serve(); used by /api/quit
@@ -68,18 +68,18 @@ LIMITS = {
 }
 
 PRESETS = {
-    '深海蓝': {'background': '#eaf2fd', 'panel': '#f7fbff', 'shell': '#a9c6ef', 'ink': '#22418c', 'accent': '#3f7fd8', 'lyricsBorder': '#bcd4f2', 'lyricsPanel': '#f4f9ff'},
-    '樱花粉': {'background': '#fff1f6', 'panel': '#fff8e9', 'shell': '#f0c1d5', 'ink': '#a35479', 'accent': '#d58eae', 'lyricsBorder': '#e6bfd1', 'lyricsPanel': '#fff9fc'},
+    '深海蓝': {'background': '#eaf2fd', 'panel': '#f7fbff', 'shell': '#a9c6ef', 'ink': '#22418c', 'accent': '#3f7fd8'},
+    '樱花粉': {'background': '#fff1f6', 'panel': '#fff8e9', 'shell': '#f0c1d5', 'ink': '#a35479', 'accent': '#d58eae'},
     '薄荷绿': {'background': '#edf8f2', 'panel': '#f8fff6', 'shell': '#b1d8c9', 'ink': '#366c61', 'accent': '#70a998'},
     '墨水灰': {'background': '#e9e9e7', 'panel': '#fafaf7', 'shell': '#b7b9b5', 'ink': '#343b37', 'accent': '#8c948b'},
-    '奶油杏': {'background': '#fff6e9', 'panel': '#fffbf2', 'shell': '#efd2a8', 'ink': '#7a4c22', 'accent': '#e0a456', 'lyricsBorder': '#e8d3b0', 'lyricsPanel': '#fff8ec'},
-    '薰衣草紫': {'background': '#f3f0fd', 'panel': '#fbf8ff', 'shell': '#cbb8ee', 'ink': '#4b3480', 'accent': '#8f6fd6', 'lyricsBorder': '#d8caf0', 'lyricsPanel': '#f8f4ff'},
-    '抹茶青': {'background': '#eef7ec', 'panel': '#f7fdf3', 'shell': '#b6d8b4', 'ink': '#2f5c3f', 'accent': '#6fae7d', 'lyricsBorder': '#c2ddbe', 'lyricsPanel': '#f4fbf1'},
-    '蜜桃粉': {'background': '#fff0ed', 'panel': '#fff8f5', 'shell': '#f3c3ba', 'ink': '#8a3f3c', 'accent': '#e0867b', 'lyricsBorder': '#f0cdc5', 'lyricsPanel': '#fff5f2'},
-    '天青': {'background': '#e9f6fa', 'panel': '#f4fcff', 'shell': '#a9d5e6', 'ink': '#1f5470', 'accent': '#4fa6c8', 'lyricsBorder': '#b6ddeb', 'lyricsPanel': '#f0fbff'},
-    '复古棕': {'background': '#f6efe4', 'panel': '#fdf8ef', 'shell': '#d6c2a4', 'ink': '#5a3d2b', 'accent': '#a8794f', 'lyricsBorder': '#ddcbb2', 'lyricsPanel': '#faf4e9'},
-    '赛博青': {'background': '#e6fbf8', 'panel': '#f0fffd', 'shell': '#9ad9d2', 'ink': '#14524c', 'accent': '#2fb3a3', 'lyricsBorder': '#aee3dd', 'lyricsPanel': '#effffc'},
-    '暗夜': {'background': '#232a3b', 'panel': '#303950', 'shell': '#414d69', 'ink': '#eef2ff', 'accent': '#7f9cf0', 'lyricsBorder': '#4a5878', 'lyricsPanel': '#2b3348'},
+    '奶油杏': {'background': '#fff6e9', 'panel': '#fffbf2', 'shell': '#efd2a8', 'ink': '#7a4c22', 'accent': '#e0a456'},
+    '薰衣草紫': {'background': '#f3f0fd', 'panel': '#fbf8ff', 'shell': '#cbb8ee', 'ink': '#4b3480', 'accent': '#8f6fd6'},
+    '抹茶青': {'background': '#eef7ec', 'panel': '#f7fdf3', 'shell': '#b6d8b4', 'ink': '#2f5c3f', 'accent': '#6fae7d'},
+    '蜜桃粉': {'background': '#fff0ed', 'panel': '#fff8f5', 'shell': '#f3c3ba', 'ink': '#8a3f3c', 'accent': '#e0867b'},
+    '天青': {'background': '#e9f6fa', 'panel': '#f4fcff', 'shell': '#a9d5e6', 'ink': '#1f5470', 'accent': '#4fa6c8'},
+    '复古棕': {'background': '#f6efe4', 'panel': '#fdf8ef', 'shell': '#d6c2a4', 'ink': '#5a3d2b', 'accent': '#a8794f'},
+    '赛博青': {'background': '#e6fbf8', 'panel': '#f0fffd', 'shell': '#9ad9d2', 'ink': '#14524c', 'accent': '#2fb3a3'},
+    '暗夜': {'background': '#232a3b', 'panel': '#303950', 'shell': '#414d69', 'ink': '#eef2ff', 'accent': '#7f9cf0'},
 }
 
 
@@ -107,8 +107,8 @@ def find_clang():
     if env and Path(env).exists():
         return env
     for base in (ROOT, ROOT.parent):
-        for pattern in ('llvm/*/bin/clang.exe', 'llvm-portable/*/bin/clang.exe',
-                        'llvm/*/bin/clang', 'llvm-portable/*/bin/clang'):
+        for pattern in ('llvm/bin/clang.exe', 'llvm/*/bin/clang.exe', 'llvm-portable/*/bin/clang.exe',
+                        'llvm/bin/clang', 'llvm/*/bin/clang', 'llvm-portable/*/bin/clang'):
             hits = sorted(base.glob(pattern))
             if hits:
                 return str(hits[0])
@@ -139,8 +139,6 @@ def run_build(argv):
                 parser.add_argument('--out', type=Path, default=ROOT / 'build')
                 parser.add_argument('--keys', type=Path, default=ROOT / 'profiles/keys.json')
                 parser.add_argument('--theme', default='pink')
-                parser.add_argument('--lyrics', action='store_true')
-                parser.add_argument('--font', type=Path)
                 build_module.build(parser.parse_args(argv))
         except SystemExit as e:
             code = int(e.code or 0)
@@ -207,9 +205,7 @@ def extract_palette(raw):
         if _lum(bg) - _lum(ink) < 90:
             ink = _toward(ink, _BLACK, 0.5)
         c = {'background': _hex(bg), 'panel': _hex(panel), 'shell': _hex(shell),
-             'ink': _hex(ink), 'accent': _hex(accent),
-             'lyricsBorder': _hex(_toward(shell, _WHITE, 0.25)),
-             'lyricsPanel': _hex(_toward(panel, _WHITE, 0.2))}
+             'ink': _hex(ink), 'accent': _hex(accent)}
         if assets.rgb565(c['shell']) == assets.rgb565(c['background']):
             c['shell'] = _hex(_toward(shell, _BLACK, 0.12))
         return {'name': name, 'colors': c,

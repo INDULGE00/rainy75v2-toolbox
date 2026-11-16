@@ -7,7 +7,7 @@
 ## 第一步：安装基础工具
 
 1. **Python 3.10+**（推荐 3.12）
-   安装项目依赖（包含生成机器人 GIF 和字库所需的 Pillow、fontTools）：
+   安装项目依赖（包含生成机器人 GIF 所需的 Pillow）：
    ```sh
    python -m pip install -r requirements-dev.txt
    ```
@@ -18,7 +18,7 @@
    - 装完重启终端，输入 `clang --version` 和 `lld --version` 确认能正常识别。如果不想加到系统 PATH，后面运行构建脚本时用 `--clang "C:\Program Files\LLVM\bin\clang.exe"` 指定路径也行（路径带空格记得加双引号）。
 
 3. **Node.js 22+（可选）**
-   基础版烧录和网页工作台不需要 Node；只有跑自动化测试或者启用「歌词播放器后台」时才需要安装 [Node.js](https://nodejs.org/) 22 及以上版本。
+   烧录和网页工作台不需要 Node；只有跑自动化测试时才需要安装 [Node.js](https://nodejs.org/) 22 及以上版本。
 
 ---
 
@@ -100,7 +100,7 @@ python tools/build.py ips --stock inputs/ips-stock.bin --theme mint --keys "/pat
 - `manifest.json` — 烧录时给网页工作台核对的目标/SHA 清单
 - `assets/robot-<theme>.gif` — 对应主题色的像素机器人动画（刷完要一起传进 S1 槽位）
 
-> 这一版普通 IPS（UI `0.6.3 / L6`）保留了原显示逻辑，同时新增了只读芯片容量与型号查询功能。就算以后想装歌词扩展，也得先刷过这一版。
+> 这一版普通 IPS（UI `0.6.3 / L6`）保留了原显示逻辑，同时提供只读芯片容量与型号查询功能。
 
 ### 2. 编译键盘主控固件（CH585）
 
@@ -120,16 +120,6 @@ python tools/build.py main --stock inputs/main-stock.bin --isp-lib inputs/libISP
 
 刚刷完新主控时，里面的校时数据页是空的，屏幕时间会显示 `--:--:--`，刷好后去网页工作台点一下校时就行。
 
-### 3. （可选）编译歌词扩展版屏幕固件
-
-如果你需要「留白电台」滚动歌词功能，请先按 [歌词扩展文档](lyrics.md) 生成好本地字库 `build/font/FONT.BIN`，然后运行：
-
-```sh
-python tools/build.py ips --stock inputs/ips-stock.bin --lyrics --font build/font/FONT.BIN --theme pink
-```
-
-歌词版的产物会单独放在 `build/ips-lyrics/`（包含 `rainy75v2-ips.bin`、`manifest.json`、同一次绑定的 `FONT.BIN` 以及配套 GIF），**不会覆盖** `build/ips/` 里的普通版文件，注意不要把两边的 `manifest.json` 或 `FONT.BIN` 混着用。
-
 ---
 
 ## 构建脚本自动帮你守住了哪些底线？
@@ -137,10 +127,9 @@ python tools/build.py ips --stock inputs/ips-stock.bin --lyrics --font build/fon
 每次运行 `tools/build.py` 时，脚本都会在本地做完以下核查才输出 `.bin`：
 
 - **输入核对**：原厂 `.bin` 和 `libISP585.a` 的 SHA-256 必须完全一致。
-- **最小化修改**：原厂前 512 字节以及非声明的原始区域保持原封不动；普通 IPS 与歌词版只替换指定的 8 处 `BL` 调用；主控只替换指定的 4 处跳转/调用。
+- **最小化修改**：原厂前 512 字节以及非声明的原始区域保持原封不动；普通 IPS 只替换指定的 8 处 `BL` 调用；主控只替换指定的 4 处跳转/调用。
 - **地址防踩踏**：
   - 普通 IPS 新增代码严格限制在 `0x0807EC90..0x08080000`，模块内存限制在 `0x2005F000..0x20060000`。
-  - 歌词版 IPS 新增代码限制在 `0x08080000..0x08088000`，整包大小 `540672` 字节，不动高地址处原厂保存的键盘设置。
   - 主控新增代码不会侵入 `0x49000`（`0x49000..0x49FFF` 专门留给 RTC 校时记录页），且 `libISP585.a` 不允许带入多余的 `.data` / `.bss` 全局静态内存。
 
 ---
@@ -158,4 +147,4 @@ npm test
 
 ## 已有用户按需升级
 
-基础版、传统歌词、沉浸与音量的依赖和更换范围见 [升级对照表](upgrade.md)。软件版本与协议能力不能混为一谈；仅更新后台即可获得的修复，不需要重复烧录。
+各步骤的更换范围见 [升级说明](upgrade.md)。软件版本与协议能力不能混为一谈。

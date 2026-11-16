@@ -4,18 +4,20 @@
 
 ## 方式一：直接用 exe（推荐，无需 Python）
 
-双击 **`dist\Rainy75Toolbox.exe`**（约 99 MB，单文件）。首次运行会把内置组件释放到
+双击 **`dist\Rainy75Toolbox.exe`**（约 100 MB，单文件，自带固件包与编译器）。首次运行会把内置组件释放到
 `%LOCALAPPDATA%\Rainy75Toolbox\app`（约 5 秒），之后每次启动都是秒开。
 
-> **本地自用版 vs 公开发布版**：你自己用 `python toolbox/make_exe.py` 打出来的包，会把
-> `inputs/`、`build/`、`toolbox/firmware/` 和 clang 一起塞进去，开箱即刷（内含 WOB 原厂固件，
-> **只适合自用，别公开分发**）。公开 Release 里的是 `--compliant` 版：**不含任何原厂固件、不含
-> 编译器**，约 21 MB，首次使用需要在定制台 ⓪ 导入你自己的 `ips-stock.bin`，要重新编译主题还需
-> 自行安装 clang。命令：
+> **开箱即刷（默认）**：`python toolbox/make_exe.py` 打出来的包会把 `inputs/`、`build/`、
+> `toolbox/firmware/` 和 clang 一起塞进去，双击就能 ①→⑥ 直接刷，不用先导 `ips-stock.bin`，
+> 也不用另外装编译器。
+>
+> 如果你需要一款**不含原厂固件**的分发版（例如公开给别人、但只让别人用自己的原厂文件）：
 >
 > ```
 > python toolbox/make_exe.py --compliant --out-name Rainy75Toolbox-lite
 > ```
+>
+> 这种包约 21 MB，首次使用需要在定制台 ⓪ 导入自己的 `ips-stock.bin`，要重新编译主题还需自备 clang。
 
 - 不需要安装 Python、不需要 `pip install`、不需要联网；
 - 自带 clang + lld，**主题定制台里改完配色/GIF 可以直接重新编译固件**；
@@ -38,14 +40,16 @@
 重新打包（改了网页/固件/主题后）：
 
 ```
-python toolbox/make_exe.py               # 重新生成 dist\Rainy75Toolbox.exe
+python toolbox/snapshot.py               # 先把你刚编出来的 build/ 冻结成内置快照
+python toolbox/make_exe.py               # 重新生成 dist\Rainy75Toolbox.exe（含固件包 + clang）
 python toolbox/make_exe.py --payload     # 只更新载荷，不跑 PyInstaller
-python toolbox/make_exe.py --no-clang    # 生成不带编译器的精简版（约 40 MB）
+python toolbox/make_exe.py --no-clang    # 含固件包、不带编译器的精简版
+python toolbox/make_exe.py --compliant   # 不含原厂固件与编译器的分发版
 ```
 
 打包产物都是自包含的：`payload.zip` 里装着 tools / web / studio / profiles / inputs /
-build / firmware 源码 + 内置固件快照 + 当前角色素材 + 裁剪到最小的工具链（clang 113 MB 与
-ld.lld 76 MB）。`app_main.py` 是 exe 的入口，`Rainy75Toolbox.spec` 是 PyInstaller 配置。
+build / firmware 源码 + 内置固件快照（`toolbox/firmware/`）+ 当前角色素材 + 裁剪到最小的工具链
+（clang 113 MB 与 ld.lld 76 MB）。`app_main.py` 是 exe 的入口，`Rainy75Toolbox.spec` 是 PyInstaller 配置。
 
 ## 方式二：有 Python 环境时用 .bat
 
@@ -101,7 +105,7 @@ python toolbox/launch.py --no-browser    # 只起服务，自己开浏览器
 
 | 选项 | 读哪里 | 说明 |
 |---|---|---|
-| **内置快照（推荐）** | `toolbox/firmware/` | 打包时预留的那套固件，已在你机器上验证通过，离线可用 |
+| **内置快照（推荐）** | `toolbox/firmware/` | 仓库随附的那套固件（`v1.2.0` 起默认打包），离线可用，不用导原厂文件 |
 | build/ 最新编译 | `build/main`、`build/ips` | 定制台刚重编完想直接刷，选这个 |
 | 自选本地文件 | 你磁盘上的 `.bin` / `.gif` | 留空的项目自动回落为内置快照 |
 

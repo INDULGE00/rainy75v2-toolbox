@@ -1,6 +1,4 @@
-# Local third-party inputs and generated firmware are never release sources.
-inputs/*
-!inputs/README.md
+# Local temp/generated stuff.
 build/
 dist/
 local/
@@ -8,23 +6,41 @@ local/
 node_modules/
 __pycache__/
 *.pyc
-*.bin
 *.elf
 *.o
-*.a
 *.map
 *.log
 .env
 .env.*
 !.env.example
 
+# --- bundled firmware package (v1.2.0 起随仓库分发，开箱即刷) -------------
+# 原厂编译输入：由 vendor/ 里的原厂烧录网页解出，build.py 会核对 SHA-256
+!inputs/README.md
+!inputs/*.bin
+!inputs/*.a
+# 内置固件快照：toolbox/snapshot.py 生成，刷机向导默认用它
+!toolbox/firmware/
+!toolbox/firmware/*.bin
+!toolbox/firmware/*.gif
+!toolbox/firmware/*.png
+!toolbox/firmware/*.json
+
+# but keep stray firmware dumps out of the repo
+*.bin
+inputs/*.bin
+toolbox/firmware/*.bin
+!inputs/ips-stock.bin
+!inputs/main-stock.bin
+!toolbox/firmware/main.bin
+!toolbox/firmware/ips.bin
+
+# toolchain (clang / lld) is never published from this fork
+llvm/
+llvm-portable/
+*.a
+!inputs/libISP585.a
+
 # single-file packaging artifacts
 toolbox/payload.zip
 toolbox/pybuild/
-
-# third-party factory firmware and toolchains are NEVER published from this fork
-vendor/
-inputs/
-llvm/
-llvm-portable/
-toolbox/firmware/

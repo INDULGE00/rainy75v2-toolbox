@@ -1,0 +1,49 @@
+{
+  "format": "rainy75v2-tft/build-v1",
+  "target": "ips",
+  "status": "experimental; hardware validation incomplete",
+  "bytes": 507904,
+  "sha256": "4df1721665c0596ba9261beba13d055563859776ad3a732ef2d9b0f0d48d03b0",
+  "stockSha256": "32defab7902e57eb972a577fc6cbf3a7e57bc772d59b99f11038370412b77f41",
+  "applicationBase": 16384,
+  "iapPid": 12408,
+  "appPid": 12405,
+  "patches": [
+    {
+      "fileOffset": 494102,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 357816,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 485182,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 485216,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 485220,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 356994,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 357474,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 357690,
+      "bytes": 4
+    }
+  ],
+  "theme": "pink",
+  "uiVersion": "0.6.3",
+  "moduleRam": "0x2005f000..0x20060000",
+  "protocol": "L6"
+}

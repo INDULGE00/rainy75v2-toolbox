@@ -1,10 +1,13 @@
 {
-  "name": "rainy75v2-tft",
-  "version": "0.2.0-alpha.4",
+  "name": "rainy75v2-toolbox",
+  "version": "1.2.0",
   "private": true,
   "license": "MIT",
-  "description": "Rainy75 V2 native TFT UI, clock, and optional cached-font lyrics player",
-  "scripts": {"test": "node --test tests/protocol.test.mjs tests/hid.test.mjs tests/test_media.cjs tests/test_provider.cjs tests/desktop.test.cjs tests/cover.test.cjs tests/volume.test.cjs tests/screen-control.test.cjs", "lyrics": "node desktop/launch.cjs", "lyrics:demo": "node desktop/bridge.cjs --demo"},
-  "dependencies": {"node-hid": "3.4.0"},
-  "engines": {"node": ">=22"}
+  "description": "Rainy75 V2 桌面工具箱：刷机向导、主题定制台与显示诊断（基于 rainy75v2-tft 的社区二次开发）",
+  "scripts": {
+    "test": "node --test tests/protocol.test.mjs tests/hid.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

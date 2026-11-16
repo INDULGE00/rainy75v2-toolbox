@@ -1,0 +1,62 @@
+{
+  "format": "rainy75v2-tft/build-v1",
+  "target": "main",
+  "status": "experimental; hardware validation incomplete",
+  "bytes": 294912,
+  "sha256": "b5746ad618ae0d387f0aff824471f31a4f76279904ce67413061c7551cc1091d",
+  "stockSha256": "bc575a6d7b19042048705248715a43a67a23c7f217ba0ac464c539a390f4d23b",
+  "applicationBase": 8192,
+  "iapPid": 12409,
+  "appPid": 12405,
+  "patches": [
+    {
+      "fileOffset": 140928,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 70872,
+      "bytes": 4
+    },
+    {
+      "fileOffset": 43128,
+      "bytes": 8
+    },
+    {
+      "fileOffset": 46238,
+      "bytes": 8
+    }
+  ],
+  "isp": {
+    "sha256": "f289136e67b1a5ae382bb9be511c9ca6dea1fc0825c93599e2fc397de2a1afbd",
+    "librarySha256": "8ede32a24e09344e86ecd74731069e19d6befa287bd6de2dd7c757c6f1d06a9e",
+    "bytes": 1160,
+    "entryOffset": 242
+  },
+  "protocol": "V7.1",
+  "capability": "0x4350",
+  "clockDataPage": "0x49000..0x49fff",
+  "stockVersion": "0.63-beta1",
+  "mainProfile": {
+    "stockVersion": "0.63-beta1",
+    "bytes": 284488,
+    "ipsHook": 149120,
+    "ipsHandler": 131986,
+    "rtcHook": 79064,
+    "rtcInit": 73912,
+    "workerA": 536914036,
+    "workerB": 536917146,
+    "nextA": 536900906,
+    "nextB": 536908282,
+    "collector": 536899584,
+    "rx": 536964392,
+    "txBuffer": 536964408,
+    "gp": 536938744,
+    "usbDispatcher": 148518,
+    "parameterGetter": 133374,
+    "highcodeEnd": 536932352,
+    "dataSource": 287568,
+    "dataEnd": 536937464,
+    "bssStart": 536937472,
+    "bssEnd": 536987996
+  }
+}

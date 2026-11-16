@@ -6,7 +6,11 @@
 
 Payload contents: everything the offline app needs to run and to *recompile*
 firmware (web UI, studio server, tools, firmware sources, factory inputs, the
-current build, the current S1 animation, and clang + lld).
+current build, the current S1 animation, the bundled snapshot and clang + lld).
+
+The default build is the "开箱即刷" one: factory inputs + toolbox/firmware are
+included so the wizard can flash without asking for ips-stock.bin. Use
+--compliant only when you must publish a build without factory binaries.
 """
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ PAYLOAD = TOOLBOX / 'payload.zip'
 DIST = ROOT / 'dist'
 
 # Whole directories, minus the noise PyInstaller or the editor leaves behind.
-DIRS = ['tools', 'web', 'studio', 'toolbox', 'profiles', 'inputs', 'build', 'firmware', 'licenses']
+DIRS = ['tools', 'web', 'studio', 'toolbox', 'profiles', 'inputs', 'build', 'firmware']
 FILES = ['README.md', 'LICENSE', 'DISCLAIMER.md', 'THIRD_PARTY_NOTICES.md']
 # User state that must survive a fresh extraction (studio settings + artwork).
 LOCAL_FILES = ['themes.json', 'character.json', 'character.gif']
@@ -37,7 +41,8 @@ def find_toolchain() -> tuple[Path | None, Path | None]:
     """Locate clang.exe and ld.lld.exe (portable llvm next to the repo)."""
     cands = [Path(os.environ.get('RAINY75_CLANG'))] if os.environ.get('RAINY75_CLANG') else []
     for base in (ROOT, ROOT.parent):
-        cands += sorted(base.glob('llvm/*/bin/clang.exe')) + sorted(base.glob('llvm-portable/*/bin/clang.exe'))
+        cands += sorted(base.glob('llvm/bin/clang.exe')) + sorted(base.glob('llvm/*/bin/clang.exe'))
+        cands += sorted(base.glob('llvm-portable/bin/clang.exe')) + sorted(base.glob('llvm-portable/*/bin/clang.exe'))
     for c in cands:
         if c and c.exists():
             lld = c.parent / 'ld.lld.exe'

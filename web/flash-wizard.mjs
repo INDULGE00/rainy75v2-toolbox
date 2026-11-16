@@ -243,7 +243,10 @@ $('s1').onclick=()=>run(1,async()=>{
  const app=await AppClient.connect();
  await app.enterIap('main');
  log('已在 36B0:3075 发送主控升级命令，设备将重新枚举为 36B0:3079');
- await wait(2000);
+ setProgress('等待主控重新枚举…',0.4);
+ const seen=await waitForPid(0x3079,15000);
+ if(seen)log('主控已进入升级模式（36B0:3079 已出现）','ok');
+ else log('等待超时：选择器里如果只有 3075，请稍等几秒再点一次②','warn');
  setProgress('主控已进入升级模式',1);
 },'主控进入升级模式');
 
@@ -260,15 +263,43 @@ $('s2').onclick=()=>run(2,async()=>{
 // part that actually needs redoing (theme colour = screen firmware, animation =
 // S1 asset, clock = RTC). Screen firmware and S1 live in separate storage, so
 // re-flashing the main controller is NOT required for any of those.
+// After a "reboot into IAP" command the device re-enumerates with a different
+// PID. The chooser has to be opened *after* that happens, otherwise the user
+// sees only the old device and gets "设备型号或 HID 描述符不匹配".
+const PID_APP = 0x3075;
+async function waitForPid(pid, timeout = 15000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    try {
+      const list = await navigator.hid.getDevices();
+      if (list.some(d => d.productId === pid)) return true;
+    } catch { /* getDevices can throw right after unplug */ }
+    await wait(400);
+  }
+  return false;
+}
+function connectHint(e, pid, label) {
+  const msg = String(e?.message || e);
+  if (!/不匹配|not found|NotFound/i.test(msg)) return e;
+  return Error(`设备选择器里没有出现 ${label}（36B0:${pid.toString(16)}）：`
+    + '键盘可能还在重启，等 2~3 秒再点一次；连续失败就拔插 USB、切有线档后重试。'
+    + '（原始信息：' + msg + '）');
+}
+
 async function step3(){
  const app=await AppClient.connect();
  await app.enterIap('ips');
  log('已在 36B0:3075 发送屏幕升级命令，设备将重新枚举为 36B0:3078');
- await wait(2000);
+ setProgress('等待屏幕重新枚举…',0.4);
+ const seen=await waitForPid(0x3078,15000);
+ if(seen)log('屏幕已进入升级模式（36B0:3078 已出现），可以烧录了','ok');
+ else log('等待超时：没在已授权设备里看到 36B0:3078。下一步的选择器里如果只有 3075，请稍等几秒再点一次④','warn');
  setProgress('屏幕已进入升级模式',1);
 }
 async function step4(){
- const f=await FlashClient.connect(ipsPlan);
+ let f;
+ try{f=await FlashClient.connect(ipsPlan);}
+ catch(e){throw connectHint(e,0x3078,'屏幕升级设备');}
  try{
   await f.flash((phase,p)=>setProgress('屏幕 · '+phase,p));
  }catch(e){await f.io.close().catch(()=>{});throw e;}
@@ -300,6 +331,7 @@ function uploadProgress(label){
 async function uploadS1(app){
  try{
   await app.upload(gifBytes,{replaceConfirmed:true,progress:uploadProgress('写入 S1 动画')});
+  return 'full';
  }catch(e){
   const st=statusOf(e);
   if((st!==4&&st!==255)||!blankBytes)throw e;
@@ -308,16 +340,31 @@ async function uploadS1(app){
   log('占位素材已写入，等待屏幕整理文件表…');
   await wait(2500);
   log('重新上传完整动画…');
-  await app.upload(gifBytes,{replaceConfirmed:true,progress:uploadProgress('重试写入 S1 动画')});
-  log('清理后重传成功','ok');
+  try{
+   await app.upload(gifBytes,{replaceConfirmed:true,progress:uploadProgress('重试写入 S1 动画')});
+   return 'full';
+  }catch(e2){
+   const st2=statusOf(e2);
+   if((st2!==4&&st2!==255)||!liteBytes)throw e2;
+   // The screen's free flash is simply too small for this animation. Falling
+   // back automatically beats leaving the screen with no animation at all.
+   log(`完整动画仍被拒（状态 ${st2}）：屏幕剩余空间放不下，自动改用精简版（24 帧 / 250 KB）…`,'warn');
+   await app.upload(liteBytes,{replaceConfirmed:true,progress:uploadProgress('写入精简版 S1')});
+   log('已写入精简版动画：屏幕现在可用。想要更长的动画，请到定制台把「动画体积上限」调到 256 KB 重新生成后再传','warn');
+   return 'lite';
+  }
  }
 }
 
 async function step5(){
  const app=await AppClient.connect();
  try{
-  await uploadS1(app);
-  log('S1 角色动画已写入并应答','ok');
+  const mode = await uploadS1(app);
+  if (mode === 'lite') {
+   log('S1 已写入（降级为精简版 24 帧）','warn');
+  } else {
+   log('S1 角色动画已写入并应答','ok');
+  }
   log('下一步 ⑥ 会重新连一次设备，只写 RTC 时间，不会重传动画');
  }finally{await app.close().catch(()=>{});}
  // Give the screen time to finish parsing the file before the RTC session opens,

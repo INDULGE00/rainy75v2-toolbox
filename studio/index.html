@@ -25,6 +25,13 @@
     </div>
     <div id="limits" class="limits">正在读取规格限制…</div>
     <div id="fit-info" class="fit-info">尚未上传 GIF · 上传后会自动等比适配到屏幕角色区</div>
+    <label class="row"><span>动画体积上限</span><select id="s1-budget">
+      <option value="262144">256 KB · 屏幕空间很紧张时选这个</option>
+      <option value="524288" selected>512 KB · 默认，大多数屏幕放得下</option>
+      <option value="1048576">1 MB · 空间够大时可用</option>
+      <option value="2097152">2 MB · 需要屏幕有足够剩余空间</option>
+    </select></label>
+    <p class="hint">屏幕的外置 Flash 还要放别的东西，动画超过它的剩余空间就会被拒绝（刷机时报 <strong>BEGIN 状态 4</strong>）。这里设多大，程序就会自动抽帧把 S1 压到该体积内；如果仍然被拒，往下调一档，或先在 WOB 官方驱动里删掉不用的图片/动画腾地方。</p>
     <label class="row"><span>去除白底</span><input type="checkbox" id="remove-bg" checked></label>
     <p class="hint">默认开启：只去掉与画面边缘相连的中性亮白，角色自带的米白 / 奶油色、白色衣物会保留。关闭则完全保留 GIF 原始像素（含白底）。切换后会自动重新生成 S1 素材。</p>
     <label class="row"><span>自动拆分三视图</span><input type="checkbox" id="split" checked></label>

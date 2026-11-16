@@ -55,7 +55,8 @@ def walk(folder: Path):
         yield path
 
 
-def build_payload(with_clang: bool = True, with_firmware: bool = True) -> Path:
+def build_payload(with_clang: bool = True, with_firmware: bool = True,
+                  with_user_assets: bool = True) -> Path:
     entries: list[tuple[Path, str]] = []
     # `--compliant` drops everything that is not ours: the factory firmware blobs
     # (WOB copyright, not MIT) and the LLVM toolchain. Such an exe asks the user to
@@ -78,13 +79,17 @@ def build_payload(with_clang: bool = True, with_firmware: bool = True) -> Path:
         if p.exists():
             entries.append((p, name))
     for name in LOCAL_FILES:
+        # User artwork (character.gif and its sprite frames) is often taken from
+        # the internet; a public build must not carry third-party art.
+        if not with_user_assets and name in ('character.gif', 'character.json'):
+            continue
         p = ROOT / 'local' / name
         if p.exists():
             entries.append((p, f'local/{name}'))
     # Sprite frames referenced by local/character.json (small, but without them
     # a clean install cannot apply the preloaded character).
     views = ROOT / 'local' / 'views'
-    if views.is_dir():
+    if with_user_assets and views.is_dir():
         for p in walk(views):
             entries.append((p, p.relative_to(ROOT).as_posix()))
 
@@ -136,23 +141,29 @@ def main() -> int:
     ap.add_argument('--no-clang', action='store_true', help='build a smaller exe without the compiler')
     ap.add_argument('--no-firmware', action='store_true',
                     help='leave out factory firmware (inputs/, build/, toolbox/firmware)')
+    ap.add_argument('--no-user-assets', action='store_true',
+                    help='leave out your own uploaded character art (local/character.gif, local/views)')
     ap.add_argument('--compliant', action='store_true',
-                    help='publishable build: no factory firmware and no LLVM (implies --no-clang --no-firmware)')
+                    help='publishable build: no factory firmware, no LLVM, no third-party art '
+                         '(implies --no-clang --no-firmware --no-user-assets)')
     ap.add_argument('--out-name', default='Rainy75Toolbox',
                     help='exe base name (default Rainy75Toolbox)')
     args = ap.parse_args()
 
     with_clang = not (args.no_clang or args.compliant)
     with_firmware = not (args.no_firmware or args.compliant)
-    build_payload(with_clang=with_clang, with_firmware=with_firmware)
+    with_user_assets = not (args.no_user_assets or args.compliant)
+    build_payload(with_clang=with_clang, with_firmware=with_firmware,
+                  with_user_assets=with_user_assets)
     if args.payload:
         return 0
     exe = build_exe(args.out_name)
     print(f'\nDONE: {exe}  ({exe.stat().st_size / 1e6:.1f} MB)')
-    if not with_clang or not with_firmware:
-        print('NOTE: this build does not include '
-              + ', '.join(k for k, v in (('clang', with_clang), ('factory firmware', with_firmware)) if not v)
-              + ' - the user must import / select them at runtime.')
+    omitted = [k for k, v in (('compiler', with_clang), ('factory firmware', with_firmware),
+                              ('user artwork', with_user_assets)) if not v]
+    if omitted:
+        print('NOTE: this build does not include ' + ', '.join(omitted)
+              + ' - the user must supply them at runtime.')
     return 0
 
 

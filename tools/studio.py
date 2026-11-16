@@ -5,7 +5,7 @@ Only listens on 127.0.0.1. All user artwork and custom themes are written under
 Run: python tools/studio.py --port 8766
 """
 from __future__ import annotations
-import argparse, base64, importlib, io, json, math, os, re, shutil, subprocess, sys, threading, time, traceback
+import argparse, base64, hashlib, importlib, io, json, math, os, re, shutil, subprocess, sys, threading, time, traceback
 from collections import Counter
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -28,8 +28,14 @@ BUILD_IPS = ROOT / 'build' / 'ips'
 ASSETS_DIR = BUILD_IPS / 'assets'
 STOCK = ROOT / 'inputs' / 'ips-stock.bin'
 MAIN_STOCK = ROOT / 'inputs' / 'main-stock.bin'
-# Factory firmware sizes are fixed per target; used to reject a wrong file early.
-STOCK_SIZES = {'ips': 507904, 'main': 294912}
+# Compile inputs are NOT the finished 507,904 B image: the factory extract is
+# 502,925 B and build.py verifies it by SHA-256. Accept the exact hash, or the
+# full-image sizes when someone dumps the whole flash (build.py will then verify).
+IPS_STOCK_SHA = '32defab7902e57eb972a577fc6cbf3a7e57bc772d59b99f11038370412b77f41'
+STOCK_ACCEPT = {
+    'ips': {'sizes': {502925, 507904}, 'sha': IPS_STOCK_SHA, 'hint': '502,925 B 的原厂提取件'},
+    'main': {'sizes': {284492, 294912}, 'sha': None, 'hint': '284,492 B 的原厂提取件'},
+}
 COLOR_FIELDS = ('background', 'panel', 'shell', 'ink', 'accent', 'lyricsBorder', 'lyricsPanel')
 REQUIRED_COLORS = ('background', 'panel', 'shell', 'ink', 'accent')
 LOCK = threading.Lock()
@@ -242,7 +248,7 @@ def validate_character(raw):
         raise ValueError('角色配置格式错误')
     files = raw.get('files')
     if not isinstance(files, list) or not files or len(files) > 3:
-        raise ValueError('角色素材数量必须是 1~3 张')
+        raise ValueError('还没有角色素材：请在 ① 里上传一张角色 GIF（或选择 1~3 张视角图）后再应用')
     for rel in files:
         if not isinstance(rel, str) or not rel.startswith('local/views/') or '..' in rel:
             raise ValueError('角色素材路径不合法')
@@ -437,7 +443,7 @@ class Handler(SimpleHTTPRequestHandler):
             # it stays on this machine under inputs/ and is never uploaded.
             data = self.body()
             target = str(data.get('target') or 'ips')
-            if target not in STOCK_SIZES:
+            if target not in STOCK_ACCEPT:
                 return self.send_json({'ok': False, 'error': '未知目标：' + target}, 400)
             raw = data.get('data') or ''
             if not isinstance(raw, str) or ',' not in raw:
@@ -446,15 +452,20 @@ class Handler(SimpleHTTPRequestHandler):
                 blob = base64.b64decode(raw.split(',', 1)[1], validate=True)
             except Exception:
                 return self.send_json({'ok': False, 'error': '文件不是有效的 base64 数据'}, 400)
-            want = STOCK_SIZES[target]
-            if len(blob) != want:
-                return self.send_json({'ok': False,
-                                       'error': f'文件大小不对：{len(blob)} B，原厂固件应为 {want} B'}, 400)
+            spec = STOCK_ACCEPT[target]
+            digest = hashlib.sha256(blob).hexdigest()
+            if len(blob) not in spec['sizes'] or (spec['sha'] and digest != spec['sha']):
+                return self.send_json({
+                    'ok': False,
+                    'error': (f'这不是可用的原厂固件：收到 {len(blob)} B / sha256 {digest[:12]}…，'
+                              f'需要 {spec["hint"]}（sha256 '
+                              f'{spec["sha"][:12] + "…" if spec["sha"] else "任意"}）。'
+                              '请从官方烧录工具导出后原样选择，别改名或裁剪。')}, 400)
             dest = STOCK if target == 'ips' else MAIN_STOCK
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(blob)
             return self.send_json({'ok': True, 'state': state_payload(),
-                                   'log': f'已导入原厂固件 {target}（{len(blob)} B）到 inputs/{dest.name}'})
+                                   'log': f'已导入原厂固件 {target}（{len(blob)} B，sha256 {digest[:12]}…）到 inputs/{dest.name}'})
         try:
             data = self.body()
             if path == '/api/palette':

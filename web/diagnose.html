@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rainy75 V2 · 时间诊断与修复</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">READ-ONLY DIAGNOSTICS · 桌面 Chrome / Edge · USB 有线</div>
+  <h1>时间不显示？先查原因</h1>
+  <p class="lede">这一页先做只读查询，不会擦写任何东西。查出原因后再由你决定要不要校时或降低动画负载。</p>
+</header>
+
+<section class="card">
+  <h2>① 连接键盘并读取状态</h2>
+  <button id="connect" class="primary">连接键盘并诊断（只读）</button>
+  <button id="disconnect" disabled>断开</button>
+  <pre id="report" class="log">等待连接…</pre>
+  <div id="verdict" class="status">尚未诊断</div>
+</section>
+
+<section class="card">
+  <h2>② 按诊断结果修复</h2>
+  <div class="aux">
+    <button id="calibrate" disabled>重新校时（写入 RTC 锚点）</button>
+    <button id="slow" disabled>降低动画负载并重新上传 S1 GIF</button>
+  </div>
+  <p class="hint">「降低动画负载」会把当前 S1 GIF 每帧时长从 60ms 改为 150ms（只改帧延迟，不改画面），然后覆盖上传 S1 槽位。它同时会缓解你觉得播放太快的问题。</p>
+  <div id="fix" class="status">等待诊断</div>
+</section>
+
+<section class="card recover">
+  <h2>判读依据</h2>
+  <ul>
+    <li>主控能力不是 <code>0x4350</code>：说明没刷 V7.1 主控补丁，时间功能依赖它，需要走完整刷机向导。</li>
+    <li>屏幕时钟源是 <code>0x401</code>：时间未同步，点「重新校时」即可。</li>
+    <li>主控 RTC 锚点无效：常见于键盘完全断电 / 长时间断电，重新校时一次可恢复。</li>
+    <li>以上都正常但时间仍不刷新：多半是高帧率 GIF 占满屏幕 GUI/DMA，主控串口推送被跳过，用「降低动画负载」。</li>
+  </ul>
+</section>
+</main>
+<script type="module" src="./diagnose.mjs"></script>
+</body>
+</html>

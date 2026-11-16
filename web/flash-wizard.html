@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rainy75 V2 · 刷机向导（官方 0.64）</title>
+<link rel="stylesheet" href="./flash-wizard.css">
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">LOCAL WORKBENCH · 仅本机 127.0.0.1</div>
+  <h1 id="wizard-title">Rainy75 V2 刷机向导</h1>
+  <p class="lede">固件已在本机编译并通过校验。本页自动载入文件、校验 SHA-256 / 目标 / PID、锁死顺序，并自动完成擦除、写入、回读、素材上传与校时。<strong>你只需按顺序点 6 个按钮，并在浏览器弹出的设备选择器里选中对应设备。</strong></p>
+</header>
+
+<section class="card warn">
+  <h2>开始前必读</h2>
+  <ul>
+    <li>实验性固件（<code>status: experimental; hardware validation incomplete</code>）。刷错基线、中途断电或拔线可能黑屏、需要售后救砖，并可能影响保修。</li>
+    <li>本次主控补丁基于<strong>官方 0.64</strong> 原厂镜像（SHA <code>31a9eb…e476</code>）。如果你的键盘实际是 0.63 beta1，<strong>不要继续</strong>，需改用另一套地址重编。</li>
+    <li>刷机、上传、校时全程必须 <strong>USB 数据线直连键盘本体并切到有线模式</strong>，2.4G / 蓝牙不可写屏。</li>
+    <li>请关闭 WOB 官方驱动网页/客户端，避免它占用同一个 HID 通道。</li>
+    <li>设备选择器里的 <code>36B0:3075</code> 是正常模式，<code>36B0:3079</code> 是主控升级模式，<code>36B0:3078</code> 是屏幕升级模式。选错会被校验拦下，不会擦除。</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>① 预检（自动）</h2>
+  <div class="src">
+    <span class="src-title">固件来源</span>
+    <div class="src-btns">
+      <button type="button" data-src="snapshot" class="on">内置快照（推荐）</button>
+      <button type="button" data-src="build">build/ 最新编译</button>
+      <button type="button" data-src="local">自选本地文件</button>
+    </div>
+    <p class="muted" id="src-note">内置快照 = 打包时预留、已在你机器上验证通过的那套固件（主控 + 屏幕 + S1 动画），完全离线可用。</p>
+    <div class="src-local" id="src-local" hidden>
+      <label>主控固件 <code>294,912 B</code><input type="file" id="f-main" accept=".bin,application/octet-stream"></label>
+      <label>屏幕固件 <code>507,904 B</code><input type="file" id="f-ips" accept=".bin,application/octet-stream"></label>
+      <label>S1 动画 <code>320×172</code><input type="file" id="f-gif" accept=".gif,image/gif"></label>
+      <p class="muted">留空的项目自动回落为内置快照。长度不一致会被预检直接拒绝；自定义固件无法核对官方 0.64 基线，请自行确认来源。</p>
+    </div>
+  </div>
+  <div id="precheck" class="precheck">正在读取并校验本机固件…</div>
+  <div class="preview">
+    <img id="preview-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="当前主题界面预览" width="320" height="172">
+    <div>
+      <strong id="theme-name">正在读取当前主题…</strong>
+      <p>刷完后屏幕显示大单键、RTC 时钟、电量与连接图标，S1 槽位播放自定义角色动画。脱离电脑也能工作。</p>
+      <p class="muted">动画素材：<code id="gif-path">正在读取…</code></p>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>② 人工确认</h2>
+  <label class="check"><input type="checkbox" id="c1"> 我已确认键盘当前主控固件是<strong>官方 0.64</strong>（在 WOBHub 驱动里查看过版本），不是 0.63 beta1 或其他批次。</label>
+  <label class="check"><input type="checkbox" id="c2"> 我已在官方驱动里把屏幕设为 <strong>GIF 播放 · 槽位 1（S1）</strong>。</label>
+  <label class="check"><input type="checkbox" id="c3"> 键盘已用 USB 数据线直连电脑并切到有线模式，全程不会断电或拔线。</label>
+  <label class="check"><input type="checkbox" id="c4"> 已关闭 WOB 官方驱动页面 / 客户端，并知悉变砖与保修风险，愿意自行承担。</label>
+  <button id="arm" class="primary" disabled>确认无误，解锁刷机步骤</button>
+  <p class="muted" id="arm-note">勾选以上 4 项后解锁。若不确定主控版本，先去 WOBHub 核对，别猜。</p>
+</section>
+
+<section class="card">
+  <h2>③ 按顺序执行</h2>
+  <ol class="steps">
+    <li id="li1"><div class="step-head"><span class="num">1</span><div><strong>主控进入升级模式</strong><small>设备选择器选 <code>36B0:3075</code>；发送升级命令后键盘会重新枚举</small></div></div>
+      <button id="s1" disabled>① 发送主控升级命令</button><span class="step-state" id="t1">等待</span></li>
+    <li id="li2"><div class="step-head"><span class="num">2</span><div><strong>烧录键盘主控</strong><small>设备选择器选 <code>36B0:3079</code>；自动擦除 → 写入 294,912 B → 全字节回读校验</small></div></div>
+      <button id="s2" disabled>② 烧录主控固件</button><span class="step-state" id="t2">等待</span></li>
+    <li id="li3"><div class="step-head"><span class="num">3</span><div><strong>屏幕进入升级模式</strong><small>设备选择器选 <code>36B0:3075</code>；等主控重启后再点</small></div></div>
+      <button id="s3" disabled>③ 发送屏幕升级命令</button><span class="step-state" id="t3">等待</span></li>
+    <li id="li4"><div class="step-head"><span class="num">4</span><div><strong>烧录屏幕固件</strong><small>设备选择器选 <code>36B0:3078</code>；自动擦除 → 写入 507,904 B → 全字节回读校验</small></div></div>
+      <button id="s4" disabled>④ 烧录屏幕固件（当前主题）</button><span class="step-state" id="t4">等待</span></li>
+    <li id="li5"><div class="step-head"><span class="num">5</span><div><strong>上传角色动画（S1）</strong><small>设备选择器选 <code>36B0:3075</code>；只写 S1 素材，不校时。大动画有数千个数据包，可能要几分钟，期间请勿拔线</small></div></div>
+      <button id="s5" disabled>⑤ 上传 S1 角色动画</button><span class="step-state" id="t5">等待</span></li>
+    <li id="li6"><div class="step-head"><span class="num">6</span><div><strong>写入当前时间并读回</strong><small>设备选择器选 <code>36B0:3075</code>；重新独立连接，只做校时 + 读回核对（主控/屏幕时间、电量、连接模式）</small></div></div>
+      <button id="s6" disabled>⑥ 校时并读回核对</button><span class="step-state" id="t6">等待</span></li>
+  </ol>
+  <div class="bar"><div id="bar-fill"></div></div>
+  <div class="bar-label"><span id="phase">未开始</span><span id="pct">0%</span></div>
+  <div class="aux">
+    <button id="probe" disabled>刷后只读状态检测（可选）</button>
+    <button id="skip" disabled title="仅当确认设备已进入升级模式时使用">设备已在升级模式，跳过当前步骤</button>
+    <button id="copylog">复制诊断日志</button>
+  </div>
+  <div class="aux">
+    <button id="s5lite" disabled title="24 帧 / 200ms 的轻量版，用于判断大文件是不是包数过多导致失败">上传精简版 S1（排障）</button>
+    <button id="s5fix" disabled title="BEGIN 返回状态 4（空间不足）或 255（文件表未整理好）时，先用 454 B 占位素材覆盖 S1，再传目标动画">清理并重试上传（状态 4 / 255 专用）</button>
+  </div>
+  <p class="muted"><strong>⑤ 与 ⑥ 是两条独立连接</strong>：上传只写 S1，校时只写 RTC，任何一步失败就单独重试那一步，不会连带影响另一步。⑤ 若报「素材指令返回状态 4」（设备拒绝开始传输），点「清理并重试上传」；完整版失败而精简版成功说明包数过多，可在定制台减少帧数或调大每帧时长。仍不行请用 WOB 官方驱动选中 <code>GIF 槽位 1</code> 并删除多余图片/动画腾出空间。</p>
+</section>
+
+<section class="card quick">
+  <h2>快捷操作（日常更换不用从头刷）</h2>
+  <p class="muted">屏幕固件、S1 动画、RTC 时间是<strong>三块互不影响的存储</strong>，所以换配色不用重刷主控、只改动画不用重刷屏幕、只校时连固件都不用碰。<strong>只有第一次使用、更换主控基线或救砖时才需要完整 ①→④。</strong></p>
+  <div class="aux">
+    <button data-quick="qtime" data-label="只校准时间" disabled>只校准时间（第 ⑥ 步）</button>
+    <button data-quick="qgif" data-label="只换角色动画" disabled>只换角色动画（第 ⑤ 步）</button>
+    <button data-quick="qtheme" data-label="只换主题色" disabled>只换主题色（重刷屏幕）</button>
+    <button data-quick="qthemeall" data-label="换主题色 + 动画" disabled>换主题色 + 动画（重刷屏幕 + S1）</button>
+  </div>
+  <div class="quick-run" id="quick-run" hidden>
+    <div class="quick-run-head">
+      <span id="quick-run-title">—</span>
+      <span class="quick-run-right">
+        <span class="qpct" id="quick-pct"></span>
+        <span class="qstate wait" id="quick-run-state">待执行</span>
+      </span>
+    </div>
+    <div class="quick-steps" id="quick-steps"></div>
+    <p class="quick-detail" id="quick-detail">—</p>
+  </div>
+  <div class="aux rescue">
+    <button data-quick="qrescue" data-label="直接烧录屏幕固件" disabled title="屏幕黑屏/卡在升级模式（设备选择器里能看到 36B0:3078）时用：跳过 ③，直接写屏幕固件">屏幕黑屏 / 卡在 IAP？直接烧录屏幕固件</button>
+  </div>
+  <ul class="quick-note">
+    <li><strong>只换主题色</strong>：定制台「应用并重新编译」→ 本页固件来源切到「build/ 最新编译」→ 点这里。屏幕会闪一下重启，主控不动。</li>
+    <li><strong>只换动画</strong>：定制台上传 GIF 并应用（会同时生成 S1 素材）→ 固件来源选「build/ 最新编译」→ 点这里。只写 S1，几秒到几分钟取决于帧数。</li>
+    <li><strong>只校时</strong>：不碰固件也不碰动画，几秒完成，适合换电脑/断电后补时间。</li>
+    <li>以上都要求主控已经是 <strong>V7.1</strong>（之前完整刷过一次）。若提示「主控不是 V7.1 / 屏幕协议不匹配」，走一次完整 ①→④ 即可，之后一直用快捷操作。</li>
+    <li>快捷操作仍然需要先在上面勾选 4 项确认并解锁，避免误触。</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>④ 执行日志</h2>
+  <pre id="log" class="log">等待操作…</pre>
+</section>
+
+<section class="card recover">
+  <h2>回退方式</h2>
+  <p>本次已按 0.64 基线生成恢复包：<code>build/main-restore/</code> 与 <code>build/ips-restore/</code>。也可用 <code>vendor/Rainy75V2烧录工具20261112-1beta1.html</code> 刷回原厂，但那份页面必须单独起一个静态服务（例如 <code>python -m http.server 8790</code>）后再打开，<strong>不要与本工具箱共用一个端口</strong>。</p>
+  <p class="muted">彻底关电源开关后 RTC 会重置显示 <code>--:--:--</code>，重连 USB 再校时一次即可；内部 RC 时钟每天会有几秒漂移。</p>
+</section>
+</main>
+<script type="module" src="./flash-wizard.mjs"></script>
+</body>
+</html>

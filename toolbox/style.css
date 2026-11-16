@@ -1,0 +1,47 @@
+/* SPDX-License-Identifier: MIT */
+:root{
+  --bg:#eef1f4; --card:#fff; --ink:#171c22; --muted:#69737f; --line:#dfe4ea;
+  --accent:#0f8a6a; --accent-dark:#0b6d54; --chip:#eef6f3; --warn:#a8471c;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;
+  font:13.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+
+/* ---------- top bar ---------- */
+.bar{display:flex;align-items:center;gap:18px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:var(--accent);
+  color:#fff;font-weight:800;font-size:13px;letter-spacing:.02em;flex:none}
+.brand h1{margin:0;font-size:15.5px;letter-spacing:-.01em}
+.brand p{margin:1px 0 0;font-size:11.5px;color:var(--muted)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:11.5px;color:var(--muted);background:#f6f8f9;border:1px solid var(--line);
+  border-radius:99px;padding:4px 11px;white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+.chip.ok{color:var(--accent-dark);background:var(--chip);border-color:#cfe8df}
+.chip.warn{color:var(--warn);background:#fff8f1;border-color:#f0d9c4}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;align-items:center;gap:6px;padding:8px 14px;background:#f7f9fa;border-bottom:1px solid var(--line)}
+.tabs .spacer{flex:1}
+.tabs button{font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);background:transparent;
+  border:1px solid transparent;border-radius:9px;padding:7px 14px;cursor:pointer;transition:.15s}
+.tabs button:hover:not(:disabled){background:#fff;border-color:var(--line)}
+.tabs button.on{background:#fff;border-color:var(--line);color:var(--accent-dark);box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.tabs button.ghost{font-weight:500;color:var(--muted);font-size:12px}
+.tabs button.ghost:hover{color:var(--accent-dark)}
+.tabs button:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- stage ---------- */
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px 0;gap:10px}
+#frame{flex:1;min-height:0;width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;
+  box-shadow:0 2px 10px rgba(16,24,40,.05)}
+.hint{font-size:12px;color:var(--muted);padding:0 4px 12px;max-width:140ch}
+.hint strong{color:var(--ink)}
+.hint code{background:var(--chip);border-radius:5px;padding:1px 5px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}
+
+/* shown after 退出程序 stops the local service */
+.bye{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:10px;text-align:center;color:#1f2937;background:#f7faf9}
+.bye h1{font-size:22px;margin:0}
+.bye p{margin:0;font-size:13.5px;line-height:1.8;color:#5b6b73}

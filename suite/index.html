@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rainy75 V2 · Windows 套件</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">Rainy75 <span>套件</span></div>
+    <div id="device-pill" class="pill">正在检测键盘…</div>
+    <div id="mode-pill" class="pill accent">模式检测中</div>
+    <div class="spacer"></div>
+    <button id="refresh" class="ghost">刷新状态</button>
+  </header>
+
+  <div class="shell">
+    <nav class="nav">
+      <button data-view="overview" class="active">概览</button>
+      <button data-view="layout">显示布局</button>
+      <button data-view="timer">计时工具</button>
+      <button data-view="monitor">系统监控</button>
+      <button data-view="tools">烧录与素材</button>
+      <div class="nav-foot">仅本机 127.0.0.1<br>不上传任何数据</div>
+    </nav>
+
+    <main class="content">
+      <section id="view-overview" class="view">
+        <h1>设备概览</h1>
+        <div class="grid-2">
+          <div class="card">
+            <h2>键盘连接</h2>
+            <dl id="device-info"></dl>
+          </div>
+          <div class="card">
+            <h2>当前屏幕固件</h2>
+            <dl id="firmware-info"></dl>
+          </div>
+        </div>
+        <div class="card">
+          <h2>工作模式</h2>
+          <p class="muted" id="mode-desc"></p>
+          <label class="switch"><input type="checkbox" id="auto-mode" checked> 检测到键盘 USB 连接时自动进入 PC 增强模式</label>
+        </div>
+        <div class="card">
+          <h2>快捷操作</h2>
+          <div class="quick" id="quick-links"></div>
+        </div>
+      </section>
+
+      <section id="view-layout" class="view hidden">
+        <h1>屏幕显示内容与排版</h1>
+        <p class="muted">勾选要在键盘屏幕上显示的内容，右侧实时预览 320×172 的排版。</p>
+        <div class="layout-wrap">
+          <div class="card layout-controls">
+            <h2>显示项</h2>
+            <div id="display-options"></div>
+            <div class="sep"></div>
+            <h2>布局预设</h2>
+            <div class="seg" id="layout-presets">
+              <button data-layout="balanced" class="active">均衡</button>
+              <button data-layout="compact">紧凑</button>
+              <button data-layout="columns">分栏</button>
+            </div>
+            <div class="sep"></div>
+            <button id="save-layout" class="primary">保存显示配置</button>
+            <p class="hint warn">带「需固件」标记的项目要新增屏幕显示区域与 OP 协议，属于第二阶段；现在可以先配置与预览，不会写入键盘。</p>
+          </div>
+          <div class="card preview-card">
+            <h2>屏幕预览 <small>320×172，放大 2 倍</small></h2>
+            <canvas id="preview" width="640" height="344"></canvas>
+            <div id="layout-note" class="hint"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-timer" class="view hidden">
+        <h1>倒计时与番茄钟</h1>
+        <div class="grid-2">
+          <div class="card">
+            <h2>计时设置</h2>
+            <div class="seg" id="timer-mode">
+              <button data-mode="pomodoro" class="active">番茄钟</button>
+              <button data-mode="countdown">倒计时</button>
+            </div>
+            <label class="row"><span>倒计时时长（秒）</span><input type="number" id="countdown-sec" min="10" max="7200" step="10"></label>
+            <label class="row"><span>专注时长（分钟）</span><input type="number" id="work-min" min="1" max="120"></label>
+            <label class="row"><span>休息时长（分钟）</span><input type="number" id="break-min" min="1" max="60"></label>
+            <label class="row"><span>轮次</span><input type="number" id="rounds" min="1" max="12"></label>
+            <button id="save-timer" class="primary">保存设置</button>
+          </div>
+          <div class="card timer-card">
+            <h2>当前计时</h2>
+            <div id="timer-display" class="timer-display">25:00</div>
+            <div id="timer-phase" class="muted">准备开始</div>
+            <div class="actions">
+              <button id="timer-start" class="primary">开始</button>
+              <button id="timer-pause">暂停</button>
+              <button id="timer-skip">跳过本段</button>
+              <button id="timer-reset">重置</button>
+            </div>
+            <button id="timer-send" class="ghost full" disabled>发送到键盘屏幕（需固件支持）</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-monitor" class="view hidden">
+        <h1>系统监控可视化</h1>
+        <p class="muted">数据仅在 PC 增强模式下采集，不写入键盘；只读传感器与公开天气接口，不编造数值。</p>
+        <div class="grid-3" id="monitor-cards"></div>
+        <div class="card">
+          <h2>采集设置</h2>
+          <label class="row"><span>刷新间隔（秒）</span><input type="number" id="interval" min="2" max="60"></label>
+          <label class="row"><span>天气城市</span><select id="city"></select></label>
+          <button id="save-monitor" class="primary">保存设置</button>
+          <button id="refresh-monitor" class="ghost">立即刷新</button>
+          <span id="monitor-at" class="muted"></span>
+        </div>
+      </section>
+
+      <section id="view-tools" class="view hidden">
+        <h1>烧录、素材与诊断</h1>
+        <p class="muted">以下工具都是已有的本机页面，在新窗口打开；刷机仍需你本人在浏览器里确认设备授权。</p>
+        <div class="grid-2" id="tool-cards"></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

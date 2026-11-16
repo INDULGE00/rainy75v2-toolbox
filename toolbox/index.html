@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rainy75 V2 工具箱</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <span class="logo">R75</span>
+    <div>
+      <h1>Rainy75 V2 工具箱</h1>
+      <p>离线 · 仅本机 127.0.0.1 · 刷机 / 主题 / 诊断</p>
+    </div>
+  </div>
+  <div class="chips" id="chips">
+    <span class="chip" id="chip-fw">固件快照读取中…</span>
+    <span class="chip" id="chip-theme">主题读取中…</span>
+    <span class="chip" id="chip-build">构建状态读取中…</span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="wizard" class="on">刷机向导</button>
+  <button data-tab="studio">主题定制台</button>
+  <button data-tab="diagnose">显示诊断</button>
+  <span class="spacer"></span>
+  <button class="ghost" id="open-ext" title="在独立标签页打开当前工具（若嵌入页面里 WebHID 不弹窗，用这个）">在新标签打开</button>
+  <button class="ghost" id="reload" title="重新加载当前工具">重新加载</button>
+  <button class="ghost" id="quit" title="停止本地服务并退出程序（刷机过程中不要点）">退出程序</button>
+</nav>
+
+<main class="stage">
+  <iframe id="frame" title="工具内容" allow="hid; clipboard-write"></iframe>
+  <div class="hint" id="hint">
+    <strong>第一次用？</strong>按 ①→⑥ 顺序执行一次（预检 → 勾选 4 项确认 → 主控 / 屏幕 / 上传动画 / 校时）。
+    之后只想换配色、换动画或校时，用向导下方的<strong>快捷操作</strong>即可，不必从头刷。
+    设备选择器里选 <code>36B0:3075</code>（正常）、<code>3079</code>（主控 IAP）、<code>3078</code>（屏幕 IAP）。
+    若设备选择器没有弹出，点右上角「在新标签打开」后再试（部分浏览器不允许嵌入页面调用 WebHID）。
+  </div>
+</main>
+
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

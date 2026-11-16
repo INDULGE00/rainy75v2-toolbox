@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rainy75 V2 · 角色与主题定制台</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">LOCAL STUDIO · 127.0.0.1 · 所有素材只保存在本机 local/</div>
+  <h1>角色与主题定制台</h1>
+  <p class="lede">上传角色立绘、调主题色，实时预览 320×172 屏幕效果，一键重新生成 S1 动画或重新编译 IPS 固件。改完到 <a href="../web/flash-wizard.html" target="_blank" rel="noopener">刷机向导</a> 应用。</p>
+  <div id="status-line" class="status">正在读取本机配置…</div>
+</header>
+
+<div class="grid">
+  <section class="card">
+    <h2>① 角色形象</h2>
+    <div id="drop" class="drop">
+      <strong>拖拽图片到这里，或点此选择</strong>
+      <span>支持 JPG / PNG / GIF。上传 GIF 动画会逐帧沿用原动作与形象（推荐）；白底静态图会自动拆三视图并去白底，单张透明图作为一个视角。</span>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    </div>
+    <div id="limits" class="limits">正在读取规格限制…</div>
+    <div id="fit-info" class="fit-info">尚未上传 GIF · 上传后会自动等比适配到屏幕角色区</div>
+    <label class="row"><span>去除白底</span><input type="checkbox" id="remove-bg" checked></label>
+    <p class="hint">默认开启：只去掉与画面边缘相连的中性亮白，角色自带的米白 / 奶油色、白色衣物会保留。关闭则完全保留 GIF 原始像素（含白底）。切换后会自动重新生成 S1 素材。</p>
+    <label class="row"><span>自动拆分三视图</span><input type="checkbox" id="split" checked></label>
+    <label class="row"><span>角色名称</span><input type="text" id="char-name" maxlength="40" placeholder="deepseek 大肥鱼"></label>
+    <div id="sprites" class="sprites"></div>
+    <div class="sep"></div>
+    <label class="row"><span>动作风格</span><select id="motion-style">
+      <option value="lively">温和待机动作（呼吸 / 摇摆 / 小跳，不画表情，28 帧）</option>
+      <option value="turn">仅三视角轮转（原版，8 帧）</option>
+      <option value="idle">仅正面静态待机（8 帧）</option>
+    </select></label>
+    <label class="row"><span>动画顺序</span><select id="sequence">
+      <option value="turn">正面 → 侧面 → 背面 → 侧面（8 帧）</option>
+      <option value="front">仅正面（8 帧轻微浮动）</option>
+      <option value="two">正面 ↔ 侧面（8 帧）</option>
+      <option value="flip">正面 → 背面（8 帧）</option>
+    </select></label>
+    <label class="row"><span>角色大小 <output id="scale-out"></output></span><input type="range" id="scale" min="0.5" max="1.5" step="0.02"></label>
+    <label class="row"><span>上下位置 <output id="offset-out"></output></span><input type="range" id="offsetY" min="-24" max="24" step="1"></label>
+    <label class="row"><span>每帧时长 <output id="duration-out"></output></span><input type="range" id="duration" min="60" max="600" step="10"></label>
+    <div id="loop-info" class="fit-info"></div>
+    <label class="row"><span>脚下阴影</span><input type="checkbox" id="shadow" checked></label>
+  </section>
+
+  <section class="card">
+    <h2>② 主题配色</h2>
+    <label class="row"><span>主题 ID</span><input type="text" id="theme-id" maxlength="24" spellcheck="false"></label>
+    <label class="row"><span>主题名称</span><input type="text" id="theme-name" maxlength="40"></label>
+    <div class="presets" id="presets"></div>
+    <div class="sep"></div>
+    <div class="palette-head">
+      <button id="extract-palette" class="ghost">从上传的 GIF 提取配色</button>
+      <span class="muted">按 GIF 主色自动生成几套适配配色，点色卡即可套用</span>
+    </div>
+    <div id="palette-box" class="palette-box"></div>
+    <div class="sep"></div>
+    <div id="colors" class="colors"></div>
+    <p class="hint">改了颜色必须点「应用并重新编译固件」，否则固件里的文字底色会和新 GIF 对不上。</p>
+  </section>
+</div>
+
+<section class="card preview-card">
+  <h2>③ 实时预览 <small>320×172 · 放大 2 倍显示</small></h2>
+  <div class="preview-wrap">
+    <img id="live-preview" alt="屏幕实时预览" width="640" height="344">
+    <div class="preview-side">
+      <p><strong>当前已应用固件</strong></p>
+      <dl id="build-info"></dl>
+      <p class="hint">预览里包含时间 / 电量 / 大按键，这些是固件运行时叠画的；GIF 本身只提供底图与角色动画。</p>
+      <a id="gif-link" href="#" target="_blank" rel="noopener">查看生成的 S1 动画 GIF ↗</a>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="stock-card" hidden>
+  <h2>⓪ 导入你自己的原厂固件</h2>
+  <p class="hint">本工具<strong>不附带任何 WOB 原厂固件</strong>（版权归原厂，不随本项目开源）。要编译屏幕固件，请从你自己的设备备份或官方烧录工具里取出原厂固件，在这里导入一次即可——文件只留在本机 <code>inputs/</code>，不会上传到任何地方。</p>
+  <div class="actions">
+    <label class="file-btn">导入屏幕原厂固件（ips-stock.bin · 507,904 B）
+      <input type="file" id="stock-ips" accept=".bin" hidden>
+    </label>
+    <label class="file-btn ghost">导入主控原厂固件（main-stock.bin · 294,912 B，可选）
+      <input type="file" id="stock-main" accept=".bin" hidden>
+    </label>
+  </div>
+  <p class="hint">屏幕固件是编译新主题的必需品；主控固件只有在你需要重编主控时钟桥时才用得上。</p>
+</section>
+
+<section class="card">
+  <h2>④ 应用到本机产物</h2>
+  <p class="hint">上传 GIF 后会<strong>自动重新编译 IPS 固件</strong>并生成配套 S1 素材；之后到刷机向导刷一次屏幕并上传 S1，写入后即可直接显示。</p>
+  <div class="actions">
+    <button id="assets-only" class="ghost">仅重新生成 S1 动画素材</button>
+    <button id="apply" class="primary">应用并重新编译 IPS 固件</button>
+    <button id="reset" class="ghost">放弃修改，恢复已保存配置</button>
+  </div>
+  <p id="apply-hint" class="hint">「仅生成素材」适用于只换角色、不动主题色：刷过固件的键盘只需重新上传 S1 GIF。改了颜色请务必用第二个按钮。</p>
+  <pre id="log" class="log">等待操作…</pre>
+</section>
+
+<footer>
+  <p>下次使用：双击根目录 <code>Rainy75工具箱.bat</code>（推荐，刷机 + 定制台同窗口），或双击 <code>studio/start.bat</code> 单独开定制台。</p>
+  <p>定制内容全部写在 <code>local/</code>（已被 .gitignore 忽略），不会污染仓库源码，也不会把你的角色图提交出去。原厂输入、恢复包与主控固件不受影响。</p>
+</footer>
+</main>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

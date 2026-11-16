@@ -333,7 +333,8 @@ async function upload(file) {
     const r = await api('/api/upload', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: dataUrl, split: $('#split').checked,
-                             name: $('#char-name').value, removeBg: $('#remove-bg').checked }),
+                             name: $('#char-name').value, removeBg: $('#remove-bg').checked,
+                             budgetBytes: Number($('#s1-budget')?.value) || undefined }),
     });
     if (!r.data || !r.data.ok) throw Error((r.data || {}).error || '上传失败');
     const d = r.data;
@@ -442,6 +443,21 @@ async function importStock(target, file) {
 }
 $('#stock-ips').onchange = e => importStock('ips', e.target.files[0]);
 $('#stock-main').onchange = e => importStock('main', e.target.files[0]);
+
+// Remember the S1 size target; it is what keeps the animation small enough for
+// the screen's free flash (a too-big file is refused with BEGIN status 4).
+const budgetSel = $('#s1-budget');
+if (budgetSel) {
+  budgetSel.value = String(S?.s1Budget || 524288);
+  budgetSel.onchange = async () => {
+    const r = await api('/api/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ s1Budget: Number(budgetSel.value) }),
+    });
+    if (r.data?.ok) log(r.data.log, 'ok');
+    else log('设置失败：' + (r.data?.error || r.status), 'err');
+  };
+}
 
 await loadState();
 renderPalettes(null);

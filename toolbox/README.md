@@ -7,6 +7,16 @@
 双击 **`dist\Rainy75Toolbox.exe`**（约 99 MB，单文件）。首次运行会把内置组件释放到
 `%LOCALAPPDATA%\Rainy75Toolbox\app`（约 5 秒），之后每次启动都是秒开。
 
+> **本地自用版 vs 公开发布版**：你自己用 `python toolbox/make_exe.py` 打出来的包，会把
+> `inputs/`、`build/`、`toolbox/firmware/` 和 clang 一起塞进去，开箱即刷（内含 WOB 原厂固件，
+> **只适合自用，别公开分发**）。公开 Release 里的是 `--compliant` 版：**不含任何原厂固件、不含
+> 编译器**，约 21 MB，首次使用需要在定制台 ⓪ 导入你自己的 `ips-stock.bin`，要重新编译主题还需
+> 自行安装 clang。命令：
+>
+> ```
+> python toolbox/make_exe.py --compliant --out-name Rainy75Toolbox-lite
+> ```
+
 - 不需要安装 Python、不需要 `pip install`、不需要联网；
 - 自带 clang + lld，**主题定制台里改完配色/GIF 可以直接重新编译固件**；
 - 关闭那个应用窗口 = 退出程序（后台服务随之停止，不留残留进程）；

@@ -32,6 +32,7 @@ inputs/*.bin
 toolbox/firmware/*.bin
 !inputs/ips-stock.bin
 !inputs/main-stock.bin
+!inputs/main-stock-063beta1.bin
 !toolbox/firmware/main.bin
 !toolbox/firmware/ips.bin
 

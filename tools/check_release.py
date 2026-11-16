@@ -11,7 +11,7 @@ import re,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 # Deliberately bundled (see THIRD_PARTY_NOTICES.md): factory inputs + snapshot.
-BUNDLED={'inputs/ips-stock.bin','inputs/main-stock.bin','inputs/libISP585.a',
+BUNDLED={'inputs/ips-stock.bin','inputs/main-stock.bin','inputs/main-stock-063beta1.bin','inputs/libISP585.a',
          'toolbox/firmware/main.bin','toolbox/firmware/ips.bin',
          'toolbox/firmware/s1-full.gif','toolbox/firmware/s1-lite.gif',
          'toolbox/firmware/s1-blank.gif','toolbox/firmware/preview.png',

@@ -3,26 +3,26 @@
   "target": "main",
   "status": "experimental; hardware validation incomplete",
   "bytes": 294912,
-  "sha256": "b5746ad618ae0d387f0aff824471f31a4f76279904ce67413061c7551cc1091d",
-  "stockSha256": "bc575a6d7b19042048705248715a43a67a23c7f217ba0ac464c539a390f4d23b",
+  "sha256": "2dcba755b8db2b6384cbd3fb5e69a35a9175f92240d32a2f64ac6f565fa44ea8",
+  "stockSha256": "31a9eb80752c1f8c94951dd6e2e6776eeb216f47ba58919ca36f6e6d26f0e476",
   "applicationBase": 8192,
   "iapPid": 12409,
   "appPid": 12405,
   "patches": [
     {
-      "fileOffset": 140928,
+      "fileOffset": 140926,
       "bytes": 4
     },
     {
-      "fileOffset": 70872,
+      "fileOffset": 70828,
       "bytes": 4
     },
     {
-      "fileOffset": 43128,
+      "fileOffset": 43120,
       "bytes": 8
     },
     {
-      "fileOffset": 46238,
+      "fileOffset": 46230,
       "bytes": 8
     }
   ],
@@ -35,28 +35,28 @@
   "protocol": "V7.1",
   "capability": "0x4350",
   "clockDataPage": "0x49000..0x49fff",
-  "stockVersion": "0.63-beta1",
+  "stockVersion": "0.64",
   "mainProfile": {
-    "stockVersion": "0.63-beta1",
-    "bytes": 284488,
-    "ipsHook": 149120,
-    "ipsHandler": 131986,
-    "rtcHook": 79064,
-    "rtcInit": 73912,
-    "workerA": 536914036,
-    "workerB": 536917146,
+    "stockVersion": "0.64",
+    "bytes": 284492,
+    "ipsHook": 149118,
+    "ipsHandler": 131984,
+    "rtcHook": 79020,
+    "rtcInit": 73868,
+    "workerA": 536914028,
+    "workerB": 536917138,
     "nextA": 536900906,
-    "nextB": 536908282,
+    "nextB": 536908274,
     "collector": 536899584,
-    "rx": 536964392,
-    "txBuffer": 536964408,
-    "gp": 536938744,
-    "usbDispatcher": 148518,
-    "parameterGetter": 133374,
-    "highcodeEnd": 536932352,
+    "rx": 536964344,
+    "txBuffer": 536964360,
+    "gp": 536938704,
+    "usbDispatcher": 148516,
+    "parameterGetter": 133372,
+    "highcodeEnd": 536932308,
     "dataSource": 287568,
-    "dataEnd": 536937464,
-    "bssStart": 536937472,
-    "bssEnd": 536987996
+    "dataEnd": 536937424,
+    "bssStart": 536937424,
+    "bssEnd": 536987948
   }
 }

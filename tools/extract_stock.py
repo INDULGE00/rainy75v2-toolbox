@@ -51,4 +51,11 @@ if __name__=='__main__':
  else:
   text=a.source.read_text(encoding='utf-8-sig');data={k:extract(text,k)for k in kinds}
  a.out.mkdir(parents=True,exist_ok=True)
- for k,v in data.items():target=a.out/('ips-stock.bin' if k=='ips' else 'main-stock.bin');target.write_bytes(v);print(target.name,len(v),hashlib.sha256(v).hexdigest())
+ # Name the keyboard image after its real baseline so re-extracting the bundled
+ # 0x3F HTML never overwrites the official 0.64 input that inputs/ ships as
+ # `main-stock.bin` (the wizard refuses anything else for a strict build).
+ MAIN_NAMES={'31a9eb80752c1f8c94951dd6e2e6776eeb216f47ba58919ca36f6e6d26f0e476':'main-stock.bin',
+             'bc575a6d7b19042048705248715a43a67a23c7f217ba0ac464c539a390f4d23b':'main-stock-063beta1.bin'}
+ for k,v in data.items():
+  target=a.out/('ips-stock.bin' if k=='ips' else MAIN_NAMES[hashlib.sha256(v).hexdigest()])
+  target.write_bytes(v);print(target.name,len(v),hashlib.sha256(v).hexdigest())

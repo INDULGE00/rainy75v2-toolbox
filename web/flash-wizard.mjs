@@ -146,9 +146,9 @@ async function precheck(){
   const src=await loadSource(),names=await themeIndex();
   const themeName=src.themeId==='custom'?'自定义':((names[src.themeId]||{}).name||src.themeId);
   if(src.strictStock){
-   if(src.mm.stockSha256!==EXPECT.mainStock)throw Error('主控基线不是官方 0.64，拒绝刷写。请回到 0x3F 基线重新编译');
+   if(src.mm.stockSha256!==EXPECT.mainStock)throw Error('主控基线不是官方 0.64，拒绝刷写。请用 inputs/main-stock.bin（官方 0.64）重新编译主控；若你的键盘仍是旧 0x3F 基线，改用 inputs/main-stock-063beta1.bin 编译，并把「固件来源」切到「自选本地文件」再刷');
    if(src.im.stockSha256!==EXPECT.ipsStock)throw Error('屏幕原厂基线 SHA 不匹配，拒绝刷写');
-   if(src.mm.stockVersion&&src.mm.stockVersion!=='0.64')throw Error('构建清单标注的版本不是 0.64，拒绝刷写');
+   if(src.mm.stockVersion&&src.mm.stockVersion!=='0.64')throw Error('构建清单标注的版本不是 0.64（实际 '+(src.mm.stockVersion||'未知')+'），拒绝刷写：请用官方 0.64 原厂输入重新编译主控');
   }
   mainPlan=await validateBuild(src.mb,src.mm);
   ipsPlan=await validateBuild(src.ib,src.im);

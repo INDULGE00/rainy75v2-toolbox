@@ -1,12 +1,12 @@
 {
-  "capturedAt": "2026-11-16T20:10:15+08:00",
+  "capturedAt": "2026-11-16T20:23:31+08:00",
   "theme": "pink",
   "themeName": "pink",
   "main": {
     "bytes": 294912,
-    "sha256": "b5746ad618ae0d387f0aff824471f31a4f76279904ce67413061c7551cc1091d",
-    "stockSha256": "bc575a6d7b19042048705248715a43a67a23c7f217ba0ac464c539a390f4d23b",
-    "stockVersion": "0.63-beta1"
+    "sha256": "2dcba755b8db2b6384cbd3fb5e69a35a9175f92240d32a2f64ac6f565fa44ea8",
+    "stockSha256": "31a9eb80752c1f8c94951dd6e2e6776eeb216f47ba58919ca36f6e6d26f0e476",
+    "stockVersion": "0.64"
   },
   "ips": {
     "bytes": 507904,

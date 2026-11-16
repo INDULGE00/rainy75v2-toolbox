@@ -1,5 +1,14 @@
 # 更新日志
 
+## v1.2.1
+
+修「第一步预检失败：主控基线不是官方 0.64，拒绝刷写」。
+
+- `inputs/main-stock.bin` 换成**官方 0.64** 主控镜像（284,492 B，SHA `31a9eb80…`），旧的 0x3F 镜像改名 `inputs/main-stock-063beta1.bin` 单独保留。
+- 内置快照按 0.64 重新编译：主控 `main.bin` SHA `2dcba755…`，`stockVersion` = `0.64`，`stockSha256` = `31a9eb80…`；屏幕 `ips.bin` 不变（`4df17216…`）。
+- `tools/extract_stock.py` 按基线自动命名解出的主控镜像，重新解 vendor HTML（0x3F）不会覆盖 0.64 的 `main-stock.bin`。
+- `docs/build.md`、`inputs/README.md`、README 补上「向导只接受 0.64」的原因与两套基线的正确用法。
+
 ## v1.2.0
 
 这一版把「固件包」加回软件与仓库，同时彻底删掉歌词播放器扩展。

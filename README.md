@@ -23,8 +23,8 @@
 
 | 内容 | 位置 | 说明 |
 | --- | --- | --- |
-| 内置快照（刷机向导默认用它） | `toolbox/firmware/` | 主控 `main.bin` 294,912 B · 屏幕 `ips.bin` 507,904 B · S1 动画 · `info.json` |
-| 原厂编译输入 | `inputs/` | `ips-stock.bin`、`main-stock.bin`、`libISP585.a`，`build.py` 逐个核对 SHA-256 |
+| 内置快照（刷机向导默认用它） | `toolbox/firmware/` | 主控 `main.bin` 294,912 B（**官方 0.64 基线**）· 屏幕 `ips.bin` 507,904 B · S1 动画 · `info.json` |
+| 原厂编译输入 | `inputs/` | `ips-stock.bin`、`main-stock.bin`（官方 0.64）、`main-stock-063beta1.bin`（旧 0x3F）、`libISP585.a`，`build.py` 逐个核对 SHA-256 |
 | 原厂离线烧录网页 | `vendor/` | 内嵌键盘 `0x3F`、接收器 `0x26`、屏幕 `0x0002`，用于提取输入与救砖 |
 | 编译器 | exe 内 / `llvm/bin/` | `full` 版自带 clang + lld，定制台可以重新编译主题 |
 
@@ -35,6 +35,10 @@
 | **内置快照（推荐）** | `toolbox/firmware/` | 已验证可用的那套固件，离线可刷 |
 | build/ 最新编译 | `build/main`、`build/ips` | 定制台刚重编完想直接刷时选这个 |
 | 自选本地文件 | 你磁盘上的 `.bin` / `.gif` | 留空的项目自动回落为内置快照 |
+
+> **主控必须按官方 0.64 基线编译**：向导的严格预检只认 `stockSha256 = 31a9eb80…` / `stockVersion = 0.64`。
+> 如果你的键盘是官方 0.64 却拿 0x3F 编的固件去刷，会报「主控基线不是官方 0.64，拒绝刷写」；反之亦然。
+> 仓库里的 `inputs/main-stock.bin` 就是 0.64，直接 `python tools/build.py main --stock inputs/main-stock.bin ...` 即可。
 
 改完主题后想把新固件冻结成快照：`python toolbox/snapshot.py`。
 

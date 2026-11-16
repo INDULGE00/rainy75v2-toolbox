@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 # Studio mode is opt-in via env var. With it off, generation stays byte-identical
 # to the shipped assets/ GIFs so the repository's own contract tests keep passing.
 STUDIO=os.environ.get('RAINY75_STUDIO')=='1'
-BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(233,12,16,16),(264,17,20,8),(287,17,23,7),(214,14,13,9)]
+BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(225,10,24,20),(257,15,22,10),(287,17,23,7),(202,15,15,9)]
 # Studio layout centres the big-key region inside the taller, RAINY-free card.
 # Only the y coordinate moves; all mask sizes (and the mask total) stay put.
 # Region 5 is the caps-lock lamp+letter in the top bar, left of the connection
@@ -15,19 +15,19 @@ BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(233,12,16,16),(264,17,20,8),(287,17,
 STUDIO_REGIONS=[(40,62,120,76),*BASE_REGIONS[1:]]
 REGIONS=BASE_REGIONS
 def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
-# Connection icons, 16x16 1-bit rows, drawn at (233,12) by native_ui.c.
+# Connection icons, 24x20 1-bit rows, drawn at ui_geo[2] (225,10) by native_ui.c.
 # Index order is firmware-defined: 0=USB wired, 1=2.4G wireless, 2=Bluetooth.
-# Pictograms instead of letter abbreviations. Wired is a USB-A plug standing on
-# its cable (hollow shell + two pins on top), so it cannot be confused with the
-# battery bar drawn right next to it; 2.4G spells "2.4G" in 4x6 glyphs that span
-# the full 16 px (a bare "2.4" left users unsure whether it meant 2.4 GHz);
-# Bluetooth is the rune.
-# Region, array shape and mask allocation are unchanged.
-MASK_TOTAL=1393
+# Pictograms instead of letter abbreviations, drawn 1.5x larger than the first
+# 16x16 set so they read at arm's length: the USB-A plug stands on its cable
+# (hollow shell + two pins), 2.4G spells the full "2.4G" in the 5x7 pixel font
+# (a bare "2.4" left users unsure whether it meant 2.4 GHz), Bluetooth is the
+# rune. The status bar right side is a single right-aligned group:
+# caps lamp | connection icon | battery | percentage.
+MASK_TOTAL=1431
 ICONS=[
- [0,1632,1632,4080,2064,2064,2064,2064,2064,2064,4080,384,384,384,384,384],
- [0,0,0,0,0,24679,37032,4392,8683,16425,62503,0,0,0,0,0],
- [256,384,320,4384,2320,1312,832,384,384,832,1312,2320,4384,320,384,256],
+ [13824,13824,13824,131008,131008,98496,98496,98496,98496,98496,98496,131008,131008,7168,7168,7168,7168,7168,7168,7168],
+ [0,0,0,0,0,0,7340318,8913696,525600,1050926,2101154,4227362,16285982,0,0,0,0,0,0,0],
+ [0,4096,6144,6144,5120,135936,69760,69760,54016,13312,6144,6144,13312,13312,54016,69760,135936,5120,5120,6144],
 ]
 # Lowercase 'a' for the caps-off lamp (the 5x7 cache font only carries
 # uppercase ASCII, so the two case letters ship as their own 5x7 table).
@@ -104,7 +104,7 @@ def headers(keys,theme,out):
  rows+=['};','typedef struct {u16 key;u8 w,h;u16 rows[11];} BigGlyph;','static const BigGlyph big_glyphs[]={']
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
- rows+=['};','static const u16 connection_icons[3][16]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
+ rows+=['};','static const u32 connection_icons[3][20]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u16 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  if offset!=MASK_TOTAL:raise ValueError('Unexpected mask allocation')
@@ -156,17 +156,20 @@ def preview_frame(theme,keys,key=227):
     for xx,cell in enumerate(row):
      if cell=='1':d.rectangle((x+(i*6+xx)*scale,y+yy*scale,x+(i*6+xx+1)*scale-1,y+(yy+1)*scale-1),fill=theme['ink'])
  text('12:34:56',16,13,2);text('84%',287,17,1)
- d.rectangle((264,17,280,24),outline=theme['ink']);d.rectangle((267,20,276,22),fill=theme['ink']);d.rectangle((281,19,282,22),fill=theme['ink'])
+ bx,by=regions()[3][0],regions()[3][1]
+ d.rectangle((bx,by,bx+19,by+9),outline=theme['ink']);d.rectangle((bx+2,by+2,bx+15,by+7),fill=theme['ink'])
+ d.rectangle((bx+20,by+3,bx+21,by+7),fill=theme['ink'])
+ ix,iy=regions()[2][0],regions()[2][1]
  for yy,row in enumerate(ICONS[0]):
-  for xx in range(16):
-   if row&(1<<(15-xx)):d.point((233+xx,12+yy),fill=theme['ink'])
+  for xx in range(24):
+   if row&(1<<(23-xx)):d.point((ix+xx,iy+yy),fill=theme['ink'])
  cx,cy=regions()[5][0],regions()[5][1]
- for yy in range(7):
-  for xx in range(7):
-   if (xx-3)**2+(yy-3)**2<=10:d.point((cx+xx,cy+2+yy),fill=theme['ink'])
+ for yy in range(9):
+  for xx in range(9):
+   if (xx-4)**2+(yy-4)**2<=18:d.point((cx+xx,cy+yy),fill=theme['ink'])
  for yy,row in enumerate(font['A']):
   for xx,cell in enumerate(row):
-   if cell=='1':d.point((cx+8+xx,cy+2+yy),fill=theme['ink'])
+   if cell=='1':d.point((cx+10+xx,cy+1+yy),fill=theme['ink'])
  gx,gy,gw,gh=regions()[0]
  g=next(g for g in keys['glyphs'] if g['key']==key);x=gx+(gw-len(g['rows'][0])*6)//2;y=gy+(gh-len(g['rows'])*6)//2
  for yy,row in enumerate(g['rows']):

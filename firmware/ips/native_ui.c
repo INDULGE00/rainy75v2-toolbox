@@ -6,7 +6,7 @@
 #define LCD_BUSY R(0x20001c6c)
 extern u8 __live_bss_start__,__live_bss_end__;
 static struct {
- u8 masks[1393];
+ u8 masks[1431];
  u32 pointer,object,time,key_at,caps_at;
  u16 x,y,w,h,key;
  u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers,caps;
@@ -58,13 +58,14 @@ static void status_masks(void){
  unsigned x,y,value,bit,icon;u8 s[4];
  clear(2);clear(3);
  if(ui.known&&ui.mode<5){
+  const UiRegion *ir=&ui_geo[2];
   icon=ui.mode==UI_USB_RAW?0:ui.mode==UI_RF_RAW?1:2;
-  for(y=0;y<16;y++)for(x=0;x<16;x++)if(connection_icons[icon][y]&(1u<<(15-x)))dot(2,x,y);
+  for(y=0;y<ir->h;y++){u32 row=connection_icons[icon][y];for(x=0;x<ir->w;x++)if(row&(1u<<(ir->w-1-x)))dot(2,x,y);}
  }
  value=ui.known?ui.battery:255;
- for(y=0;y<8;y++)for(x=0;x<20;x++){
-  bit=(x<17&&(x==0||x==16||y==0||y==7))||(x==17&&y>=2&&y<6);
-  if(x>=2&&x<14&&y>=2&&y<6)bit=value<=100?(x-2)*100u<12u*value:(y==4&&x>=6&&x<10);
+ for(y=0;y<10;y++)for(x=0;x<22;x++){
+  bit=(x<20&&(x==0||x==19||y==0||y==9))||(x>=20&&y>=3&&y<8);
+  if(x>=2&&x<18&&y>=2&&y<8)bit=value<=100?(x-2)*100u<16u*value:(y>=4&&y<6&&x>=7&&x<13);
   if(bit)dot(3,x,y);
  }
  if(value>100)text(4,(const u8*)"--",2,1);
@@ -75,12 +76,12 @@ static void status_masks(void){
 static void caps_mask(void){
  unsigned x,y;const u16 *g=case_glyphs[ui.caps?0:1];
  clear(5);
- for(y=0;y<7;y++)for(x=0;x<7;x++){
-  int dx=(int)x-3,dy=(int)y-3;unsigned d2=(unsigned)(dx*dx+dy*dy);
-  if(ui.caps){if(d2<=10u)dot(5,x,y+2);}
-  else if(d2<=10u&&d2>=5u)dot(5,x,y+2);
+ for(y=0;y<9;y++)for(x=0;x<9;x++){
+  int dx=(int)x-4,dy=(int)y-4;unsigned d2=(unsigned)(dx*dx+dy*dy);
+  if(ui.caps){if(d2<=18u)dot(5,x,y);}
+  else if(d2<=18u&&d2>=9u)dot(5,x,y);
  }
- for(y=0;y<7;y++)for(x=0;x<5;x++)if(g[y]&(16u>>x))dot(5,8+x,y+2);
+ for(y=0;y<7;y++)for(x=0;x<5;x++)if(g[y]&(16u>>x))dot(5,10+x,y+1);
 }
 static void refresh(void){
  u32 t;u8 s[8];unsigned i,shift;

@@ -87,5 +87,5 @@ python tools/build.py ips --stock inputs/ips-stock.bin --theme mint
 
 ## 4. 进阶修改：移动 UI 坐标或扩展 5×7 字库
 
-- **坐标与遮罩（`REGIONS`）**：6 个动态绘制区域（按键框、时钟、连接图标、电池图标、电量百分比、大写锁定灯）的坐标定义在 `tools/assets.py` 的 `REGIONS` 中，合计占用 `1393` 字节的 1-bit 位图遮罩缓冲（`MASK_TOTAL`）。网页编辑器目前不支持直接拖拽布局；如果你要在源码里挪位置或改框大小，需要同步改 `REGIONS`、`base_frame` 底图画法以及 `firmware/ips/native_ui.c` 中的边界校验，确保总遮罩不越界。
+- **坐标与遮罩（`REGIONS`）**：6 个动态绘制区域（按键框、时钟、连接图标、电池图标、电量百分比、大写锁定灯）的坐标定义在 `tools/assets.py` 的 `REGIONS` 中，合计占用 `1431` 字节的 1-bit 位图遮罩缓冲（`MASK_TOTAL`）。顶部状态栏右侧是一组右对齐元素：大写灯（`202,15` / 15×9）、连接图标（`225,10` / 24×20）、电池（`257,15` / 22×10）、百分比（`287,17` / 23×7），相邻间距统一 9 px。网页编辑器目前不支持直接拖拽布局；如果你要在源码里挪位置或改框大小，需要同步改 `REGIONS`、`base_frame` 底图画法以及 `firmware/ips/native_ui.c` 中的边界校验，确保总遮罩不越界。
 - **5×7 像素字库（`profiles/font.json`）**：存放了基础界面用的 ASCII 字符和小型符号点阵（不是系统 `.ttf` 字体）。固件里通过 `glyph_index()` 查表映射，增加新符号时需要同时更新 `tools/assets.py` 导出顺序和 C 代码里的索引映射。

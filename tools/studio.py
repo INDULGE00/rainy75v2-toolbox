@@ -96,6 +96,64 @@ def write_json(path, obj):
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf8')
 
 
+def convert_s1_gif(raw, theme_id=None, budget=None, layout='base', box=None, scale=1.0,
+                   remove_bg=True, name='自定义角色'):
+    """Render any GIF into the screen's 320x172 S1 background.
+
+    Used by the flashing wizard so a phone-saved GIF (480x270, partial frames,
+    odd aspect) can be written straight to S1 without recompiling the IPS: the
+    character is contained into the character box on the current theme
+    background, frames are sampled until the file fits ``budget``. Nothing is
+    written to ``local/`` - the caller gets the bytes back.
+    """
+    import gifclip, tempfile
+    budget = budget or s1_budget()
+    themes = all_themes()
+    theme_id = theme_id if theme_id in themes else ('pink' if 'pink' in themes else next(iter(themes)))
+    theme = themes[theme_id]
+    with tempfile.TemporaryDirectory(prefix='rainy75-convert-') as tmp:
+        src = Path(tmp) / 'src.gif'
+        src.write_bytes(raw)
+        with Image.open(src) as probe:
+            n = probe.n_frames
+        if n < 1:
+            raise ValueError('GIF 没有可读取的帧')
+        target = min(n, MAX_FRAMES)
+        out = Path(tmp) / 's1.gif'
+        frames, timing = [], None
+        for _ in range(8):
+            frames = gifclip.load_gif_frames(src, max_frames=target, remove_bg=remove_bg)
+            timing = gifclip.sample_timing(src, max_frames=len(frames))
+            cfg = {'enabled': True, 'name': name[:40], 'sourceGif': 'convert',
+                   'files': [], 'frameCount': len(frames), 'sequence': list(range(len(frames))),
+                   'motion': {'enabled': False, 'frames': len(frames), 'style': 'gif'},
+                   'bob': [0] * 8, 'shadow': True, 'scale': float(scale or 1.0), 'offsetY': 0,
+                   'box': list(box or [188, 42, 300, 154]), 'removeBg': remove_bg,
+                   'duration': min(600, max(60, round(timing['perFrameMs'] / 10) * 10))}
+            duration = cfg['duration']
+            keep_studio, keep_cfg, keep_sprites = assets.STUDIO, assets._CHAR_CFG, assets._CHAR_SPRITES
+            keep_character = assets.character
+            try:
+                assets.STUDIO = layout == 'studio'
+                assets._CHAR_CFG = cfg
+                assets._CHAR_SPRITES = frames
+                assets.character = lambda: cfg
+                images = [assets.base_frame(theme, i) for i in range(len(frames))]
+            finally:
+                assets.STUDIO, assets._CHAR_CFG, assets._CHAR_SPRITES = keep_studio, keep_cfg, keep_sprites
+                assets.character = keep_character
+            assets.save_cache_gif(images, out, duration)
+            size = out.stat().st_size
+            if size <= budget * 0.97 or len(frames) <= 2:
+                break
+            target = max(2, int(len(frames) * (budget * 0.94) / max(1, size)))
+        size = out.stat().st_size
+        return {'gif': out.read_bytes(), 'frames': len(frames), 'sourceFrames': n,
+                'bytes': size, 'overBudget': size > budget, 'budget': budget,
+                'perFrameMs': timing['perFrameMs'] if timing else 0,
+                'theme': theme_id, 'layout': layout,
+                'source': list(Image.open(src).size)}
+
 def all_themes():
     return {**read_json(ROOT / 'profiles' / 'themes.json', {}), **read_json(THEMES_FILE, {})}
 
@@ -512,6 +570,28 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError('请先上传一个 GIF 动画，再提取配色')
                     raw = saved.read_bytes()
                 return self.send_json({'ok': True, 'palettes': extract_palette(raw)})
+            if path == '/api/convert-s1':
+                url = data.get('image') or ''
+                if not (isinstance(url, str) and url.startswith('data:image/gif')):
+                    raise ValueError('请选择一个 GIF 图片（.gif）')
+                raw = base64.b64decode(url.split(',', 1)[1], validate=True)
+                if len(raw) > MAX_UPLOAD_BYTES:
+                    raise ValueError('GIF 超过 12 MiB，请先在本地压缩')
+                budget = s1_budget()
+                if data.get('budgetBytes'):
+                    try:
+                        budget = int(data['budgetBytes'])
+                    except Exception:
+                        pass
+                try:
+                    got = convert_s1_gif(raw, theme_id=data.get('themeId'), budget=budget,
+                                         layout=data.get('layout') or 'base',
+                                         remove_bg=bool(data.get('removeBg', True)))
+                except Exception as exc:
+                    return self.send_json({'ok': False, 'error': f'自动转换失败：{exc}'}, 400)
+                blob = got.pop('gif')
+                return self.send_json({'ok': True, 'gif': 'data:image/gif;base64,'
+                                      + base64.b64encode(blob).decode(), **got})
             if path == '/api/upload':
                 url = data.get('image') or ''
                 if isinstance(url, str) and url.startswith('data:image/gif'):

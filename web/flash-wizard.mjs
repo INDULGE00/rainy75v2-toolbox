@@ -66,6 +66,41 @@ function refresh(){
  syncArm();
 }
 
+// A phone-saved GIF is almost never 320x172, and S1 must be exactly that. Rather
+// than making the user recompile the IPS just to get a background, ask the local
+// studio server to render the frames into the theme background (same pipeline as
+// 定制台, including frame sampling under the S1 budget) and upload the result.
+function toBase64(bytes){
+ let out='',chunk=0x8000;
+ for(let i=0;i<bytes.length;i+=chunk)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+ return btoa(out);
+}
+async function convertS1(bytes,src,why){
+ // 512 KB keeps the S1 write inside the screen's remaining external flash even
+ // when the studio setting was raised for a bigger slot.
+ const body={image:'data:image/gif;base64,'+toBase64(bytes),
+             themeId:src.themeId&&src.themeId!=='custom'?src.themeId:undefined,
+             layout:src.srcName==='build/'?'studio':'base',
+             budgetBytes:512*1024};
+ let r;
+ try{
+  r=await fetch('../api/convert-s1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ }catch{
+  throw Error(why+'；本机自动转换服务不可用（用工具箱 exe 打开，或先用主题定制台生成 320×172 的动画）');
+ }
+ if(!r.ok){
+  const info=await r.json().catch(()=>({}));
+  throw Error(why+'；自动转换失败：'+(info.error||('HTTP '+r.status)));
+ }
+ const out=await r.json();
+ const bin=atob(String(out.gif||'').split(',',2)[1]||'');
+ const raw=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++)raw[i]=bin.charCodeAt(i);
+ validateGif(raw);
+ const src0=out.source||[0,0];
+ log(`GIF 自动转换成 320×172：${src0[0]}×${src0[1]} / ${out.sourceFrames} 帧 → ${out.frames} 帧 / ${Math.round(out.bytes/1024)} KB（${out.layout==='studio'?'定制台布局':'默认布局'}）`,'warn');
+ return raw;
+}
 async function fetchBytes(path){const r=await fetch(path);if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return new Uint8Array(await r.arrayBuffer());}
 async function fetchJson(path){const r=await fetch(path);if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return r.json();}
 async function optionalGif(url){
@@ -152,8 +187,10 @@ async function precheck(){
   }
   mainPlan=await validateBuild(src.mb,src.mm);
   ipsPlan=await validateBuild(src.ib,src.im);
-  const g=src.gifBytes||await fetchBytes(src.gifUrl);
-  validateGif(g);gifBytes=g;
+  let g=src.gifBytes||await fetchBytes(src.gifUrl);
+  try{validateGif(g);}
+  catch(e){g=await convertS1(g,src,e.message);}
+  gifBytes=g;
   liteBytes=await optionalGif(src.liteUrl);
   blankBytes=await optionalGif(src.blankUrl);
   if(src.previewUrl)$('preview-img').src=src.previewUrl;

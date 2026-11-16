@@ -59,14 +59,14 @@ def load_gif_frames(path, max_frames=MAX_FRAMES, remove_bg=True, threshold=225):
         for i in idx:
             g.seek(i)
             raw.append(g.convert('RGBA'))
-    from character import remove_white_safe
+    from character import remove_white_safe, remove_background
     sprites = []
     for frame in raw:
         alpha = frame.getchannel('A')
         if alpha.getextrema()[0] < 250:      # already transparent, keep as-is
             sprites.append(frame)
         elif remove_bg:
-            sprites.append(remove_white_safe(frame.convert('RGB'), threshold=threshold, feather=0.5))
+            sprites.append(remove_background(frame.convert('RGB'), threshold=threshold))
         else:                               # user opted out: keep every original pixel
             sprites.append(frame)
     boxes = [s.getchannel('A').getbbox() for s in sprites]

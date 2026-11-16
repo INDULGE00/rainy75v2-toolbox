@@ -187,3 +187,77 @@ def load_sprites(cfg):
     if not out:
         raise ValueError('Character config has no sprites')
     return out
+
+def _flat_background(rgb: Image.Image, tolerance: int = 24):
+    """Mask of pixels matching a flat border colour (cyan, grey, white...).
+
+    Samples the outermost ring, keeps colours that cover a meaningful part of
+    it, marks every pixel within ``tolerance`` of one of them, then keeps only
+    the region connected to the border so same-coloured artwork survives.
+    """
+    w, h = rgb.size
+    from collections import Counter
+    ring = Counter()
+    step = max(1, min(w, h) // 64)
+    for x in range(0, w, step):
+        ring[rgb.getpixel((x, 0))] += 1
+        ring[rgb.getpixel((x, h - 1))] += 1
+    for y in range(0, h, step):
+        ring[rgb.getpixel((0, y))] += 1
+        ring[rgb.getpixel((w - 1, y))] += 1
+    total = sum(ring.values()) or 1
+    colours = [c for c, n in ring.most_common(4) if n / total >= 0.08][:2]
+    if not colours:
+        return None
+    mask = Image.new('L', (w, h), 0)
+    bands = rgb.split()
+    for colour in colours:
+        dist = None
+        for band, value in zip(bands, colour):
+            delta = ImageChops.difference(band, Image.new('L', (w, h), value))
+            dist = delta if dist is None else ImageChops.lighter(dist, delta)
+        hit = dist.point(lambda v: 255 if v <= tolerance else 0)
+        mask = ImageChops.lighter(mask, hit)
+    pixels = mask.load()
+    seeds = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
+             (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
+    linked = Image.new('L', (w, h), 0)
+    linked.paste(mask)
+    for seed in seeds:
+        if pixels[seed] == 255:
+            ImageDraw.floodfill(linked, seed, 128, thresh=0)
+    return linked
+
+
+def remove_flat_bg(im: Image.Image, tolerance: int = 80, feather: float = 0.5):
+    """Remove a flat coloured background (e.g. a cyan studio backdrop)."""
+    rgb = im.convert('RGB')
+    mask = _flat_background(rgb, tolerance)
+    if mask is None:
+        return im.convert('RGBA')
+    alpha = mask.point(lambda v: 0 if v == 128 else 255)
+    if feather:
+        alpha = alpha.filter(ImageFilter.GaussianBlur(feather))
+    out = rgb.convert('RGBA')
+    out.putalpha(alpha)
+    bb = alpha.getbbox()
+    return out.crop(bb) if bb else out
+
+
+def remove_background(im: Image.Image, threshold: int = 225):
+    """Pick the right de-backgrounding pass for one GIF frame.
+
+    Neutral-white backdrops keep the conservative white remover (it protects
+    cream/white clothing); anything else (cyan, grey, photo-ish flats) falls
+    back to the border-colour flood fill.
+    """
+    cut = remove_white_safe(im, threshold=threshold)
+    if cut.getchannel('A').getbbox() is None:
+        return cut
+    hist = cut.getchannel('A').histogram()
+    opaque = sum(hist[250:])
+    if opaque >= 0.97 * (cut.width * cut.height):
+        alt = remove_flat_bg(im)
+        if alt.getchannel('A').getbbox() is not None:
+            return alt
+    return cut

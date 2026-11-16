@@ -48,6 +48,13 @@ MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 # Device external Flash varies between batches; 4 MiB is the documented default.
 # Overridable so a smaller/larger target can be exercised without changing code.
 MAX_OUTPUT_GIF = int(os.environ.get('RAINY75_OUTPUT_GIF_LIMIT', 4 * 1024 * 1024))
+# The screen's external flash is shared with whatever else lives there, so the
+# practical S1 budget is far below the protocol's 4 MiB ceiling: a 1.87 MB /
+# 8083-packet animation is refused with BEGIN status 4 while the 250 KB lite
+# version goes in fine. Keep a conservative default and let the UI change it.
+S1_BUDGETS = [256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024]
+DEFAULT_S1_BUDGET = 512 * 1024
+SETTINGS_FILE = LOCAL / 'settings.json'
 # Only a guard against pathological inputs. Frame sampling is driven by the
 # encoded S1 size, not by a fixed frame budget: a GIF that fits 4 MiB keeps all
 # of its frames (see /api/upload below).
@@ -55,8 +62,9 @@ MAX_FRAMES = 300
 LIMITS = {
     'uploadBytes': MAX_UPLOAD_BYTES, 'outputBytes': MAX_OUTPUT_GIF,
     'screen': [SCREEN_W, SCREEN_H], 'maxFrames': MAX_FRAMES,
-    'rules': ['严格 320×172', '每帧完整且 disposal=1、不透明', '总计 ≤ 4 MiB',
-              '默认保留全部帧，仅当输出超过 4 MiB 才均匀抽帧'],
+    'rules': ['严格 320×172', '每帧完整且 disposal=1、不透明',
+              '默认按「动画体积上限」抽帧，保证能写进屏幕外置 Flash',
+              '上限可在定制台切换（256 KB / 512 KB / 1 MB / 2 MB）'],
 }
 
 PRESETS = {
@@ -320,6 +328,22 @@ def png_bytes(im):
     return buf.getvalue()
 
 
+def s1_budget():
+    """Current S1 size target (bytes). Small enough for the screen's free flash."""
+    try:
+        value = int((read_json(SETTINGS_FILE, {}) or {}).get('s1Budget') or DEFAULT_S1_BUDGET)
+    except Exception:
+        value = DEFAULT_S1_BUDGET
+    return max(64 * 1024, min(MAX_OUTPUT_GIF, value))
+
+
+def set_s1_budget(value):
+    raw = read_json(SETTINGS_FILE, {}) or {}
+    raw['s1Budget'] = max(64 * 1024, min(MAX_OUTPUT_GIF, int(value)))
+    write_json(SETTINGS_FILE, raw)
+    return raw['s1Budget']
+
+
 def state_payload():
     cfg = read_json(CHAR_FILE, {}) or {}
     manifest = read_json(BUILD_IPS / 'manifest.json', {}) or {}
@@ -345,6 +369,8 @@ def state_payload():
         'gifUrl': f'/api/gif?t={theme_id}',
         'previewUrl': f'/api/preview?t={theme_id}',
         'limits': LIMITS,
+        's1Budget': s1_budget(),
+        's1BudgetOptions': S1_BUDGETS,
         'stockReady': STOCK.exists(),
         'mainStockReady': MAIN_STOCK.exists(),
         'clang': find_clang(),
@@ -437,6 +463,16 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({'ok': True, 'message': 'stopping'})
             threading.Thread(target=_shutdown_soon, daemon=True).start()
             return
+        if path == '/api/settings':
+            data = self.body()
+            if 's1Budget' in data:
+                try:
+                    value = set_s1_budget(data['s1Budget'])
+                except Exception:
+                    return self.send_json({'ok': False, 'error': '体积上限不是有效数字'}, 400)
+                return self.send_json({'ok': True, 's1Budget': value,
+                                       'log': f'动画体积上限已设为 {value // 1024} KB，下次上传/应用生效'})
+            return self.send_json({'ok': True, 's1Budget': s1_budget()})
         if path == '/api/stock':
             # The public build ships WITHOUT any factory firmware (those binaries
             # belong to WOB and are not MIT). The user drops their own copy here;
@@ -503,6 +539,15 @@ class Handler(SimpleHTTPRequestHandler):
                         # GIF that would exceed 4 MiB gets sampled down.
                         target = min(n, MAX_FRAMES)
                         out_gif = ASSETS_DIR / f'robot-{theme_id}.gif'
+                        # Respect the user's S1 size target: the screen refuses
+                        # anything bigger than its free flash (BEGIN status 4),
+                        # so sample frames down until the GIF fits the budget.
+                        budget = s1_budget()
+                        if data.get('budgetBytes'):
+                            try:
+                                budget = set_s1_budget(data['budgetBytes'])
+                            except Exception:
+                                pass
                         frames, timing, cfg, size = [], None, base_cfg, 0
                         for _ in range(8):
                             frames = gifclip.load_gif_frames(gif_path, max_frames=target, remove_bg=remove_bg)
@@ -532,9 +577,9 @@ class Handler(SimpleHTTPRequestHandler):
                                 assets._CHAR_CFG, assets._CHAR_SPRITES = None, ()
                                 assets.generate(KEYS_FILE, theme_id, ASSETS_DIR, None)
                             size = out_gif.stat().st_size if out_gif.exists() else 0
-                            if size <= MAX_OUTPUT_GIF * 0.97:
+                            if size <= budget * 0.97:
                                 break
-                            nxt = max(2, int(keep * (MAX_OUTPUT_GIF * 0.94) / max(1, size)))
+                            nxt = max(2, int(keep * (budget * 0.94) / max(1, size)))
                             target = min(nxt, keep - 1) if nxt >= keep else nxt
                         frames[0].save(LOCAL / 'views' / 'gif-pose.png')
                         count = len(frames)
@@ -557,6 +602,8 @@ class Handler(SimpleHTTPRequestHandler):
                             'compiled': compiled, 'buildLog': build_log[-1400:],
                             'fitted': gif_fit_size(frames, cfg, source_size),
                             'outputBytes': size, 'overLimit': size > MAX_OUTPUT_GIF,
+                            'budgetBytes': budget, 'overBudget': size > budget,
+                            'packets': (size + 231) // 232,
                             'timing': timing, 'removeBg': remove_bg,
                             'loopMs': count * cfg['duration'],
                             'speedClamped': timing['perFrameMs'] > 600 or timing['perFrameMs'] < 60,

@@ -1,0 +1,21 @@
+Rainy75 V2 Toolbox
+===================
+
+This repository is a derivative work of
+  xixiaotiam1219-lab/rainy75v2-tft
+  https://github.com/xixiaotiam1219-lab/rainy75v2-tft
+  MIT License, Copyright (c) 2026 xixiaotiam1219-lab
+  (based on commit 416f309)
+
+Additions in this fork - desktop toolbox (toolbox/, tools/studio.py, studio/),
+quick partial-reflash flows (web/flash-wizard.*), 16x16 connection icons
+(tools/assets.py), GIF sampling/timing helpers (tools/gifclip.py,
+tools/character.py) and single-file packaging (toolbox/make_exe.py) -
+are released under the same MIT License:
+
+  Copyright (c) 2026 INDULGE00
+
+The original MIT text in LICENSE applies to both. Third-party material that is
+NOT covered by MIT (WOB factory firmware, WCH SDK libraries, LLVM toolchain,
+network-sourced artwork) is deliberately not distributed here; see
+THIRD_PARTY_NOTICES.md for details.

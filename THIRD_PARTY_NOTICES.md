@@ -66,7 +66,7 @@
 
 ## 5. 本分支（Rainy75 V2 桌面工具箱）的分发边界
 
-本仓库是在 [xixiaotiam1219-lab/rainy75v2-tft](https://github.com/xixiaotiam1219-lab/rainy75v2-tft)（MIT，© 2026 xixiaotiam1219-lab）基础上的二次开发分支，新增部分代码同样以 MIT 发布（见 [LICENSE](LICENSE) 结尾追加的版权行）。
+本仓库是在 [xixiaotiam1219-lab/rainy75v2-tft](https://github.com/xixiaotiam1219-lab/rainy75v2-tft)（MIT，© 2026 xixiaotiam1219-lab）基础上的二次开发分支，新增部分代码同样以 MIT 发布（版权归属见 [NOTICE](NOTICE)）。
 
 为遵守第三方权利，本分支**明确不再分发**以下内容（上游仓库里可能存在，这里一律移除）：
 

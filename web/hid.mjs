@@ -86,7 +86,7 @@ export class AppClient{
     return false;
    }
    if(ack.status===2)return false; // device busy: keep polling, not a fatal error
-   if(sub===1&&ack.status===4)throw Error('设备拒绝开始传输（BEGIN 状态 4）：通常是外置 Flash 空间不足、同名 S1 素材未释放，或屏幕未就绪/未在原厂驱动选中 GIF 槽位 1。可先用「清理并重试上传」释放旧素材');
+   if(sub===1&&ack.status===4)throw Error('屏幕空间不足（BEGIN 状态 4）：这个动画比屏幕外置 Flash 的剩余空间大。到定制台把「动画体积上限」调到 256 KB 重新生成，或先用「上传精简版 S1」应急；也可以在 WOB 官方驱动删掉不用的图片/动画腾地方');
    if(sub===2&&ack.value!==(a|b<<8))return false;
    if(ack.status!==0&&!(sub===1&&ack.status===6))throw Object.assign(Error('素材指令返回状态 '+ack.status),{status:ack.status});return true;
   },timeout);

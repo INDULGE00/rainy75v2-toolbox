@@ -24,11 +24,63 @@ def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
 # rune. The status bar right side is a single right-aligned group:
 # caps lamp | connection icon | battery | percentage.
 MASK_TOTAL=1431
-ICONS=[
- [13824,13824,13824,131008,131008,98496,98496,98496,98496,98496,98496,131008,131008,7168,7168,7168,7168,7168,7168,7168],
- [0,0,0,0,0,0,7340318,8913696,525600,1050926,2101154,4227362,16285982,0,0,0,0,0,0,0],
- [0,4096,6144,6144,5120,135936,69760,69760,54016,13312,6144,6144,13312,13312,54016,69760,135936,5120,5120,6144],
-]
+USB_ART = (
+    '........##....##........',
+    '........##....##........',
+    '......############......',
+    '......#..........#......',
+    '......#..........#......',
+    '......#..........#......',
+    '......#..........#......',
+    '......############......',
+    '..........####..........',
+    '..........####..........',
+    '..........####..........',
+    '..........####..........',
+    '..........####..........',
+)
+RF_ART = (
+    '........................',
+    '........................',
+    '........................',
+    '.###...........#...####.',
+    '#...#.........##..#.....',
+    '....#........#.#..#.....',
+    '...#........#..#..#.###.',
+    '..#.........#####.#...#.',
+    '.#......#......#..#...#.',
+    '#####...#......#...####.',
+    '........................',
+    '........................',
+    '........................',
+)
+BT_ART = (
+    '........................',
+    '........................',
+    '........................',
+    '......####..#####.......',
+    '......#...#...#.........',
+    '......#...#...#.........',
+    '......####....#.........',
+    '......#...#...#.........',
+    '......#...#...#.........',
+    '......####....#.........',
+    '........................',
+    '........................',
+    '........................',
+)
+
+
+def _row_bits(rows):
+    """Pack 24-wide art rows into three bytes each."""
+    blob = []
+    for row in rows:
+        value = int(row.replace('#', '1').replace('.', '0'), 2)
+        blob += [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+    return blob
+
+
+ICONS = [_row_bits(USB_ART), _row_bits(RF_ART), _row_bits(BT_ART)]
 # Lowercase 'a' for the caps-off lamp (the 5x7 cache font only carries
 # uppercase ASCII, so the two case letters ship as their own 5x7 table).
 LOWER_A=('00000','01110','00001','01111','10001','01111','00000')
@@ -104,7 +156,7 @@ STATUS_WIDGETS = {
     'conn':     (24, 13, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
-    'speed':    (11, 11, 23, 7, 3),
+    'speed':    (10, 10, 23, 7, 3),
     'rate':     (15, 10, 35, 7, 4),
     'debounce': (19, 10, 33, 7, 5),
 }
@@ -226,12 +278,12 @@ def _sym_debounce():
 def _sym_speed():
     """Speedometer: ring with tick marks, needle to the upper right."""
     def paint(d):
-        d.ellipse((0, 0, 10, 10), outline=1)
-        for tx, ty in ((5, 2), (8, 5), (7, 8)):
-            d.point((tx, ty), fill=1)
-        d.line((4, 5, 8, 2), fill=1)
+        d.ellipse((0, 0, 9, 9), outline=1)
+        d.point((5, 2), fill=1)
+        d.point((7, 7), fill=1)
+        d.line((4, 5, 7, 2), fill=1)
         d.rectangle((4, 4, 5, 5), fill=1)
-    return _symbol((11, 11), paint)
+    return _symbol((10, 10), paint)
 
 
 def _sym_bowl():
@@ -257,14 +309,16 @@ def _sym_fish():
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
 RICE_ART = (
-    '...###...',
-    '..#...#..',
-    '.#.....#.',
-    '#########',
-    '#########',
-    '.#######.',
-    '..#####..',
-    '...###...',
+    '....####....',
+    '..##....##..',
+    '.#........#.',
+    '############',
+    '############',
+    '.##########.',
+    '..########..',
+    '...######...',
+    '....####....',
+    '.....##.....',
 )
 
 
@@ -479,14 +533,7 @@ def headers(keys,theme,out):
  rows+=['};','typedef struct {u16 key;u8 w,h;u16 rows[11];} BigGlyph;','static const BigGlyph big_glyphs[]={']
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
- # 24x19 pictograms, packed as three bytes per row (saves ~57 B over u32 rows).
- packed_icons=[]
- for icon in ICONS:
-  blob=[]
-  for row in icon[:13]:
-   blob += [(row>>16)&255,(row>>8)&255,row&255]
-  packed_icons.append(blob)
- rows+=['};','static const u8 connection_icons[3][39]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
+ rows+=['};','static const u8 connection_icons[3][39]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u8 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
@@ -558,7 +605,7 @@ def preview_frame(theme,keys,key=227):
     cfg=layout['cfg']
     if cfg['kind']=='rice':
         rx,ry,rw,rh=layout['regions'][1]
-        icon=left_icon();filled=(78+19)//20
+        icon=left_icon();filled=min(5,78//20+1)
         for i in range(min(5,filled)):
             for y in range(icon.height):
                 for x in range(icon.width):
@@ -570,9 +617,11 @@ def preview_frame(theme,keys,key=227):
         rx,ry,rw,rh=layout['regions'][w['icon']]
         if w['kind']==0:
             mask=Image.new('1',(rw,rh),0)
-            for yy,row in enumerate(ICONS[0][:rh]):
+            packed=ICONS[0]
+            for yy in range(min(rh,13)):
                 for xx in range(rw):
-                    if row&(1<<(rw-1-xx)):mask.putpixel((xx,yy),1)
+                    byte=packed[yy*3+(xx>>3)]
+                    if byte&(128>>(xx&7)):mask.putpixel((xx,yy),1)
             put(mask,rx,ry)
         elif w['kind']==1:
             mask=Image.new('1',(rw,rh),0);md=ImageDraw.Draw(mask)

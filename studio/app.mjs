@@ -295,8 +295,9 @@ function writeStatusbarForm(cfg) {
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
-const RICE_DEFAULT = ['000111000', '001000100', '010000010', '111111111',
-  '111111111', '011111110', '001111100', '000111000'];
+const RICE_DEFAULT = ['000011110000', '001100001100', '010000000010', '111111111111',
+  '111111111111', '011111111110', '001111111100', '000111111000',
+  '000011110000', '000001100000'];
 let riceRows = RICE_DEFAULT.slice();
 let ricePainting = false;
 function renderRiceEditor() {

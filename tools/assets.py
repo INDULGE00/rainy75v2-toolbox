@@ -25,21 +25,23 @@ def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
 # caps lamp | connection icon | battery | percentage.
 MASK_TOTAL=1431
 USB_ART = (
-    '........##....##........',
-    '........##....##........',
-    '......############......',
-    '......#..........#......',
-    '......#..........#......',
-    '......#..........#......',
-    '......#..........#......',
-    '......############......',
-    '..........####..........',
-    '..........####..........',
-    '..........####..........',
-    '..........####..........',
-    '..........####..........',
+    '........###..###........',
+    '........###..###........',
+    '........###..###........',
+    '....################....',
+    '....################....',
+    '....###..........###....',
+    '....###..........###....',
+    '....###..........###....',
+    '....################....',
+    '....################....',
+    '..........######........',
+    '..........######........',
+    '..........######........',
+    '..........######........',
 )
 RF_ART = (
+    '........................',
     '........................',
     '........................',
     '........................',
@@ -55,6 +57,7 @@ RF_ART = (
     '........................',
 )
 BT_ART = (
+    '........................',
     '........................',
     '........................',
     '........................',
@@ -153,7 +156,7 @@ STATUS_BOWLS_MAX = 5
 # width/height of the icon and value boxes, plus the widget kind the firmware
 # switches on: 0 conn, 1 caps, 2 battery, 3 typing speed, 4/5 static values.
 STATUS_WIDGETS = {
-    'conn':     (24, 13, 0, 0, 0),
+    'conn':     (24, 14, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
     'speed':    (10, 10, 23, 7, 3),
@@ -309,16 +312,22 @@ def _sym_fish():
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
 RICE_ART = (
-    '....####....',
-    '..##....##..',
-    '.#........#.',
-    '############',
-    '############',
-    '.##########.',
-    '..########..',
-    '...######...',
-    '....####....',
-    '.....##.....',
+    '......######......',
+    '.....########.....',
+    '...###..##..###...',
+    '...###..##..###...',
+    '..##############..',
+    '.################.',
+    '.################.',
+    '##################',
+    '##################',
+    '.##.............##',
+    '..#.............#.',
+    '..##...........##.',
+    '...#...........#..',
+    '...##.........##..',
+    '....###########...',
+    '....###########...',
 )
 
 
@@ -402,7 +411,7 @@ def status_layout(theme):
         icon = left_icon()
         gap = 2
         width = 5 * icon.width + 4 * gap
-        regions.append((16, 14, width, icon.height))
+        regions.append((16, 12, width, icon.height))
         rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon)}
     elif cfg['kind'] == 'time':
         regions.append((16, 13, 94, 14))
@@ -533,7 +542,7 @@ def headers(keys,theme,out):
  rows+=['};','typedef struct {u16 key;u8 w,h;u16 rows[11];} BigGlyph;','static const BigGlyph big_glyphs[]={']
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
- rows+=['};','static const u8 connection_icons[3][39]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
+ rows+=['};','static const u8 connection_icons[3][42]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u8 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')

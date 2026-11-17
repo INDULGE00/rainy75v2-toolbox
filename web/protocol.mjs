@@ -26,7 +26,7 @@ export function validateGif(bytes){
  if(bytes.length>4*1024*1024)throw Error(`GIF 有 ${mb} MB，超过 4 MB 上限：到「主题定制台」把「动画体积上限」调到 256/512 KB 重新生成`);
 }
 export async function sha256(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');}
-export const TARGETS={main:{pid:0x3079,base:0x2000,bytes:294912,boot:[0xbe,0xfc,4,0xed]},ips:{pid:0x3078,base:0x4000,bytes:540672,boot:[0xbe,0xfc,5,0,0xed],flashKiB:1024,series:13}};
+export const TARGETS={main:{pid:0x3079,base:0x2000,bytes:294912,boot:[0xbe,0xfc,4,0xed]},ips:{pid:0x3078,base:0x4000,bytes:507904,boot:[0xbe,0xfc,5,0,0xed]}};
 export async function validateBuild(bytes,m){
  const t=TARGETS[m?.target];
  if(m?.variant)throw Error('歌词版固件已从本项目移除，请使用基础版构建（不带 variant）');

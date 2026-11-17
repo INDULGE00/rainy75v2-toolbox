@@ -23,11 +23,17 @@ static void dot(unsigned slot,unsigned x,unsigned y){
  const UiRegion *r=&ui_geo[slot];unsigned bit;
  if(x>=r->w||y>=r->h)return;bit=y*r->w+x;ui.masks[r->offset+(bit>>3)]|=(u8)(128u>>(bit&7));
 }
+/* cache_font stores 7 rows x 5 bits per glyph, MSB first (5 bytes each). */
+static unsigned row5(const u8 *g,unsigned j){
+ unsigned off=j*5u,o=off>>3u,shift=16u-(off&7u)-5u,w=(unsigned)g[o]<<8;
+ if(o<4u)w|=g[o+1u];
+ return (w>>shift)&31u;
+}
 static void text(unsigned slot,const u8 *s,unsigned n,unsigned scale){
  const UiRegion *r=&ui_geo[slot];unsigned i,j,k,dx,dy,x,y,width;
  while(scale>1&&n&&(n*6u-1u)*scale>r->w)scale--;
  width=n?(n*6u-1u)*scale:0;x=width>r->w?0:(r->w-width)/2;y=r->h>7*scale?(r->h-7*scale)/2:0;clear(slot);
- for(i=0;i<n;i++)for(j=0;j<7;j++)for(k=0;k<5;k++)if(cache_font[glyph_index(s[i])][j]&(16u>>k))
+ for(i=0;i<n;i++)for(j=0;j<7;j++)for(k=0;k<5;k++)if(row5(cache_font[glyph_index(s[i])],j)&(16u>>k))
   for(dy=0;dy<scale;dy++)for(dx=0;dx<scale;dx++)dot(slot,x+(i*6+k)*scale+dx,y+j*scale+dy);
 }
 static void key_mask(void){
@@ -88,16 +94,14 @@ static void draw_battery(unsigned icon_slot,unsigned text_slot){
  if(value>100)text(text_slot,(const u8*)"--",2,1);
  else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(text_slot,s,n,1);}
 }
-/* Keys typed in the last three seconds, shown as one decimal ("3.4"). */
+/* Keys typed per second over the last three seconds. */
 static void draw_speed(unsigned text_slot){
- u32 now=clock_ms();unsigned i,n=0,tenths;u8 s[5];
+ u32 now=clock_ms();unsigned i,n=0,v;u8 s[3];
  for(i=0;i<8;i++)if(ui.keys[i]&&(u32)(now-ui.keys[i])<3000u)n++;
- tenths=n*10u/3u;
- if(tenths>999u)tenths=999u;
+ v=n/3u;if(v>99u)v=99u;
  i=0;
- if(tenths>=100u){s[i++]=(u8)('0'+tenths/100u);s[i++]=(u8)('0'+(tenths/10u)%10u);}
- else if(tenths>=10u)s[i++]=(u8)('0'+tenths/10u);
- s[i++]='.';s[i++]=(u8)('0'+tenths%10u);
+ if(v>=10u)s[i++]=(u8)('0'+v/10u);
+ s[i++]=(u8)('0'+v%10u);
  text(text_slot,s,i,1);
 }
 static void status_build(void){
@@ -133,7 +137,7 @@ void rainy_hook_cached_draw(u16 x,u16 y,u16 w,u16 h,const u8 *p){
   for(i=0;i<STATUS_REGION_COUNT;i++){
    r=&ui_geo[i];x0=x>r->x?x:r->x;y0=y>r->y?y:r->y;x1=x+w<r->x+r->w?x+w:r->x+r->w;y1=y+h<r->y+r->h?y+h:r->y+r->h;
    for(py=y0;py<y1;py++)for(px=x0;px<x1;px++){
-    bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?r->fg:r->bg;
+    bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?UI_INK:(i?UI_BG:UI_PANEL);
     at=((py-y)*w+px-x)*2;((u8*)p)[at]=(u8)color;((u8*)p)[at+1]=(u8)(color>>8);
    }
   }
@@ -174,7 +178,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1301;break; /* UI build tag: 1.3.1 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1302;break; /* UI build tag: 1.3.2 */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

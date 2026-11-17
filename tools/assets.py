@@ -101,12 +101,12 @@ STATUS_BOWLS_MAX = 5
 # width/height of the icon and value boxes, plus the widget kind the firmware
 # switches on: 0 conn, 1 caps, 2 battery, 3 typing speed, 4/5 static values.
 STATUS_WIDGETS = {
-    'conn':     (24, 20, 0, 0, 0),
+    'conn':     (24, 19, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
-    'speed':    (17, 17, 23, 7, 3),
-    'rate':     (17, 17, 35, 7, 4),
-    'debounce': (18, 15, 35, 7, 5),
+    'speed':    (15, 15, 23, 7, 3),
+    'rate':     (16, 14, 31, 7, 4),
+    'debounce': (17, 14, 31, 7, 5),
 }
 STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
 STATUS_RIGHT_MAX = 3
@@ -182,28 +182,28 @@ def _sym_rate():
     def paint(d):
         for i in range(2):
             ox = i * 8
-            d.line((ox + 1, 3, ox + 1, 12), fill=1, width=2)
-            d.line((ox + 1, 3, ox + 4, 3), fill=1, width=2)
-            d.line((ox + 4, 3, ox + 4, 12), fill=1, width=2)
-    return _symbol((17, 15), paint)
+            d.line((ox, 4, ox, 12), fill=1, width=2)
+            d.line((ox, 4, ox + 4, 4), fill=1, width=2)
+            d.line((ox + 4, 4, ox + 4, 12), fill=1, width=2)
+    return _symbol((16, 14), paint)
 
 
 def _sym_debounce():
     """Sharp ECG spike (reference debounce glyph)."""
     def paint(d):
         d.line([(0, 9), (3, 9), (5, 2), (7, 13), (9, 5), (11, 9), (17, 9)], fill=1, width=2)
-    return _symbol((18, 15), paint)
+    return _symbol((17, 14), paint)
 
 
 def _sym_speed():
-    """Speedometer: ring, tick marks and a needle (reference typing-speed glyph)."""
+    """Speedometer: ring with tick marks, needle to the upper right."""
     def paint(d):
-        d.ellipse((1, 1, 15, 15), outline=1)
-        for tx, ty in ((8, 0), (14, 3), (16, 8), (14, 13), (8, 16), (2, 13), (0, 8), (2, 3)):
+        d.ellipse((1, 1, 14, 14), outline=1)
+        for tx, ty in ((8, 3), (12, 6), (10, 11)):
             d.point((tx, ty), fill=1)
-        d.line((8, 8, 12, 3), fill=1)
-        d.rectangle((7, 7, 9, 9), fill=1)
-    return _symbol((17, 17), paint)
+        d.line((7, 7, 11, 4), fill=1, width=2)
+        d.rectangle((6, 6, 8, 8), fill=1)
+    return _symbol((15, 15), paint)
 
 
 def _sym_bowl():
@@ -346,20 +346,26 @@ def headers(keys,theme,out):
  out.mkdir(parents=True,exist_ok=True);font=load(ROOT/'profiles/font.json')
  chars=[chr(c) for c in range(32,97)]+list('{|}~')
  grids=[font['ascii'][c] for c in chars]+[g['rows'] for g in font['icons']]
- rows=['/* SPDX-License-Identifier: MIT; generated editable pixel cells. */','static const unsigned char cache_font[][7]={']
- rows+=[' {'+','.join(str(int(r,2)) for r in glyph)+'},' for glyph in grids]
+ rows=['/* SPDX-License-Identifier: MIT; generated editable pixel cells. */','static const unsigned char cache_font[][5]={']
+ packed=[]
+ for glyph in grids:
+  bits=''.join(format(int(r,2),'05b') for r in glyph)
+  packed.append([int(bits[i:i+8].ljust(8,'0'),2) for i in range(0,35,8)])
+ rows+=[' {'+','.join(str(v) for v in g)+'},' for g in packed]
  rows+=['};','static unsigned glyph_index(unsigned c){if(c>=97&&c<=122)c-=32;if(c>=128&&c<144)return 69+c-128;if(c>=32&&c<=126)return c-32-(c>=123?26:0);return 31;}']
  (out/'cache_font.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
  rows=['/* SPDX-License-Identifier: MIT; generated from profiles. */','#define UI_IDLE_MS 0u','#define UI_USB_RAW 1','#define UI_RF_RAW 0',
-         'typedef struct {u16 x,y,fg,bg,offset,bytes;u8 w,h;} UiRegion;','static const UiRegion ui_geo[]={']
+         '#define UI_INK '+str(rgb565(theme['ink']))+'u','#define UI_BG '+str(rgb565(theme['background']))+'u',
+         '#define UI_PANEL '+str(rgb565(theme['panel']))+'u',
+         'typedef struct {u16 x,y,offset,bytes;u8 w,h;} UiRegion;','static const UiRegion ui_geo[]={']
  layout=status_layout(theme)
  offset=0
  for i,(x,y,w,h) in enumerate(layout['regions']):
-  size=(w*h+7)//8;bg=theme['panel'] if i==0 else theme['background']
-  rows.append(' {'+','.join(map(str,[x,y,rgb565(theme['ink']),rgb565(bg),offset,size,w,h]))+'},');offset+=size
+  size=(w*h+7)//8
+  rows.append(' {'+','.join(map(str,[x,y,offset,size,w,h]))+'},');offset+=size
  rows+=['};','#define STATUS_REGION_COUNT '+str(len(layout['regions']))+'u',
         '#define STATUS_MASK_BYTES '+str(layout['total'])+'u',
-        '#define STATUS_LEFT_KIND '+str({'time':0,'text':1,'bowl':1}[layout['cfg']['kind']])+'u',
+        '#define STATUS_LEFT_KIND '+str(0 if layout['cfg']['kind']=='time' else 1)+'u',
         'typedef struct {u8 kind,icon,text;} StatusWidget;','static const StatusWidget status_right[]={']
  for w in layout['widgets']:
   rows.append(' {'+','.join(map(str,[w['kind'],w['icon'],w['text']]))+'},')
@@ -381,7 +387,14 @@ def headers(keys,theme,out):
  rows+=['};','typedef struct {u16 key;u8 w,h;u16 rows[11];} BigGlyph;','static const BigGlyph big_glyphs[]={']
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
- rows+=['};','static const u32 connection_icons[3][20]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
+ # 24x19 pictograms, packed as three bytes per row (saves ~57 B over u32 rows).
+ packed_icons=[]
+ for icon in ICONS:
+  blob=[]
+  for row in icon[:19]:
+   blob += [(row>>16)&255,(row>>8)&255,row&255]
+  packed_icons.append(blob)
+ rows+=['};','static const u8 connection_icons[3][57]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u16 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
@@ -458,7 +471,7 @@ def preview_frame(theme,keys,key=227):
         rx,ry,rw,rh=layout['regions'][w['icon']]
         if w['kind']==0:
             mask=Image.new('1',(rw,rh),0)
-            for yy,row in enumerate(ICONS[0]):
+            for yy,row in enumerate(ICONS[0][:rh]):
                 for xx in range(rw):
                     if row&(1<<(rw-1-xx)):mask.putpixel((xx,yy),1)
             put(mask,rx,ry)

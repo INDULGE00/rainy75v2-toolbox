@@ -325,9 +325,15 @@ function connectHint(e, pid, label) {
 
 async function step3(){
  const app=await AppClient.connect();
- // The screen image crosses into bank 2; verify F_SIZE in APP mode first.
- const {flashKiB,series}=await app.probeIpsTarget();
- log(`屏幕芯片：${flashKiB} KiB 片内 Flash / 系列 ${series}（本版固件需要 1024 KiB）`,'ok');
+ // Advisory only: a screen running stale/broken firmware may not answer the
+ // capability query, and that must not stop us from reaching IAP (that is the
+ // only way back to a working image).
+ try{
+  const {flashKiB,series}=await app.probeIpsTarget();
+  log(`屏幕芯片：${flashKiB} KiB 片内 Flash / 系列 ${series}`,'ok');
+ }catch(e){
+  log('屏幕没有应答容量查询（'+e.message+'）：继续进入升级模式，刷完即可恢复','warn');
+ }
  await app.enterIap('ips');
  log('已在 36B0:3075 发送屏幕升级命令，设备将重新枚举为 36B0:3078');
  setProgress('等待屏幕重新枚举…',0.4);
@@ -351,9 +357,9 @@ async function step4(){
   const check=await AppClient.connect();
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x1301
-     ? `已确认屏幕正在运行 UI 1.3.1（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1301：可能刷的是旧固件`, tag===0x1301?'ok':'warn');
+   log(tag===0x1302
+     ? `已确认屏幕正在运行 UI 1.3.2（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1302：可能刷的是旧固件`, tag===0x1302?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }

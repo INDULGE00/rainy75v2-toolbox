@@ -422,7 +422,7 @@ async function refreshPreview() {
     const r = await api('/api/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ colors: collectColors(), character: collectCharacter(),
-                             icon: riceRowsHex() }),
+                             icon: riceRowsHex(), statusbar: readStatusbarForm() }),
     });
     if (r.status !== 200) {
       const e = r.data || {}; log('预览生成失败：' + (e.error || r.status), 'err'); return;
@@ -542,7 +542,15 @@ $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };
 $('#drop').ondragleave = () => $('#drop').classList.remove('over');
 $('#drop').ondrop = e => { e.preventDefault(); $('#drop').classList.remove('over'); upload(e.dataTransfer.files[0]); };
-for (const el of document.querySelectorAll('input[name="sb-left"]')) el.onchange = () => {};
+// Switching the left-slot mode must refresh the preview immediately; before
+// this the radios were bound to a no-op so only a save+recompile showed it.
+for (const el of document.querySelectorAll('input[name="sb-left"]')) {
+  el.onchange = () => {
+    schedulePreview();
+    $('#sb-status').textContent = '模式已切换，点「保存状态栏」后再重新编译写入固件';
+  };
+}
+$('#sb-text').oninput = () => { schedulePreview(); $('#sb-status').textContent = '文字已改，点「保存状态栏」后再重新编译写入固件'; };
 $('#sb-save').onclick = async () => {
   const cfg = readStatusbarForm();
   $('#sb-save').disabled = true;

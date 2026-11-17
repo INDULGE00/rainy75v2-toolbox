@@ -513,7 +513,7 @@ def preview_icon(spec):
         return None
 
 
-def render_preview(colors, cfg, icon=None):
+def render_preview(colors, cfg, icon=None, statusbar=None):
     # An empty cfg means "no custom character loaded yet" (the GET icon-preview
     # path). Render the stock background/robot and only override the rice icon.
     try:
@@ -524,17 +524,21 @@ def render_preview(colors, cfg, icon=None):
     with LOCK:
         old_cfg, old_sprites = assets._CHAR_CFG, assets._CHAR_SPRITES
         old_icon = assets._LEFT_ICON_OVERRIDE
+        old_bar = assets._STATUSBAR_OVERRIDE
         if sprites is not None:
             assets._CHAR_CFG, assets._CHAR_SPRITES = cfg, sprites
         else:
             assets._CHAR_CFG, assets._CHAR_SPRITES = None, ()
         if icon is not None:
             assets._LEFT_ICON_OVERRIDE = icon
+        if statusbar is not None:
+            assets._STATUSBAR_OVERRIDE = statusbar
         try:
             return assets.preview_frame(colors, keys)
         finally:
             assets._CHAR_CFG, assets._CHAR_SPRITES = old_cfg, old_sprites
             assets._LEFT_ICON_OVERRIDE = old_icon
+            assets._STATUSBAR_OVERRIDE = old_bar
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -877,7 +881,8 @@ class Handler(SimpleHTTPRequestHandler):
                 # while editing the rice icon on a fresh install).
                 cfg = validate_character(raw_cfg) if raw_cfg else {}
                 icon = preview_icon(data.get('icon') or '')
-                return self.send_bytes(png_bytes(render_preview(colors, cfg, icon)))
+                bar = data.get('statusbar')
+                return self.send_bytes(png_bytes(render_preview(colors, cfg, icon, bar)))
             if path == '/api/apply':
                 theme_id = str(data.get('themeId') or '')
                 if not re.fullmatch(r'[a-z0-9_-]{1,24}', theme_id):

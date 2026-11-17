@@ -7,6 +7,7 @@
    must refuse such images instead of merely warning.
 """
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -84,3 +85,49 @@ class KeyCountWidgetTest(unittest.TestCase):
         self.assertEqual([icon.getpixel((x, y)) for y in range(2) for x in range(3)],
                          [1, 1, 1, 1, 0, 0])
         self.assertIsNone(preview_icon('bad-spec'))
+
+
+class LeftSlotBandTest(unittest.TestCase):
+    def test_time_and_text_stay_inside_repaint_band(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import status_layout, load, STATUS_BAND_Y, STATUS_BAND_H, ROOT
+        theme = load(ROOT / 'profiles/themes.json')['pink']
+        orig = (ROOT / 'profiles/statusbar.json').read_text(encoding='utf8')
+        try:
+            for kind in ('time', 'text', 'rice'):
+                cfg = {'left': {'type': kind, 'text': '南柯一梦'},
+                       'right': ['conn', 'caps', 'battery']}
+                (ROOT / 'profiles/statusbar.json').write_text(
+                    json.dumps(cfg, ensure_ascii=False), encoding='utf8')
+                lay = status_layout(theme)
+                x, y, w, h = lay['regions'][1]
+                self.assertEqual(y, STATUS_BAND_Y, kind)
+                self.assertLessEqual(y + h, STATUS_BAND_Y + STATUS_BAND_H, kind)
+                # text mode also carries a 14-row static bitmap
+                if kind == 'text':
+                    self.assertEqual(h, STATUS_BAND_H)
+        finally:
+            (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')
+
+
+class HeaderCompletenessTest(unittest.TestCase):
+    def test_headers_always_define_left_icon_array(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import headers, load, ROOT
+        theme = load(ROOT / 'profiles/themes.json')['pink']
+        keys = load(ROOT / 'profiles/keys.json')
+        orig = (ROOT / 'profiles/statusbar.json').read_text(encoding='utf8')
+        try:
+            for kind in ('time', 'text', 'rice'):
+                cfg = {'left': {'type': kind, 'text': '南柯一梦'},
+                       'right': ['conn', 'caps', 'battery']}
+                (ROOT / 'profiles/statusbar.json').write_text(
+                    json.dumps(cfg, ensure_ascii=False), encoding='utf8')
+                with tempfile.TemporaryDirectory() as d:
+                    headers(keys, theme, Path(d))
+                    src = (Path(d) / 'ui_assets.h').read_text(encoding='utf8')
+                    self.assertIn('left_icon_filled[]', src, kind)
+        finally:
+            (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')

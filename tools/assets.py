@@ -175,9 +175,13 @@ CJK_FONTS = ('C:/Windows/Fonts/msyh.ttc', 'C:/Windows/Fonts/simhei.ttf',
              '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc')
 
 
+_STATUSBAR_OVERRIDE = None
+
+
 def status_config():
-    """Read and sanitise profiles/statusbar.json."""
-    cfg = load(STATUSBAR_FILE) if STATUSBAR_FILE.exists() else {}
+    """Read and sanitise profiles/statusbar.json (or a live preview override)."""
+    cfg = _STATUSBAR_OVERRIDE if _STATUSBAR_OVERRIDE is not None else (
+        load(STATUSBAR_FILE) if STATUSBAR_FILE.exists() else {})
     left = cfg.get('left') or {}
     kind = left.get('type', 'time')
     if kind not in ('time', 'text', 'rice'):
@@ -439,20 +443,24 @@ def status_layout(theme):
         regions.append((16, STATUS_BAND_Y, width, icon.height))
         rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon)}
     elif cfg['kind'] == 'time':
-        regions.append((16, 10, 94, 14))
+        # text() draws 7 rows * scale 2 = 14 px; keep the whole glyph inside
+        # the factory-repainted band y=7..20.
+        regions.append((16, STATUS_BAND_Y, 94, STATUS_BAND_H))
     elif cfg['kind'] == 'text':
-        width = max(16, len(cfg['text']) * 18 - 2)
-        res = (16, 8, width, 16)
+        # CJK cells must also fit in y=7..20: use 14-row glyphs and a 16 px
+        # advance (6 chars = 94 px, still clear of the right-hand widgets).
+        width = max(16, len(cfg['text']) * 16 - 2)
+        res = (16, STATUS_BAND_Y, width, STATUS_BAND_H)
         regions.append(res)
-        im = Image.new('1', (width, 16), 0)
+        im = Image.new('1', (width, STATUS_BAND_H), 0)
         pos = 0
         for ch in cfg['text']:
-            glyph = cjk_glyph(ch, 16)
+            glyph = cjk_glyph(ch, STATUS_BAND_H)
             for y, row in enumerate(glyph):
                 for x, cell in enumerate(row):
                     if cell == '1' and pos + x < width:
                         im.putpixel((pos + x, y), 1)
-            pos += 18
+            pos += 16
         static[1] = _pack(im)
     else:
         width = max(15, cfg['bowls'] * 17 + (17 if cfg['fish'] else 0))
@@ -552,11 +560,14 @@ def headers(keys,theme,out):
   rows.append(' {0,1,0},')
  rows+=['};']
  rice=layout.get('rice')
- if rice:
-  rows+=['#define LEFT_ICON_W '+str(rice['w'])+'u','#define LEFT_ICON_H '+str(rice['h'])+'u',
-         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in rice['filled'])+',','};']
- else:
-  rows+=['#define LEFT_ICON_W 0u','#define LEFT_ICON_H 0u']
+ # draw_rice() is compiled unconditionally, so left_icon_filled must exist in
+ # every build - otherwise selecting time/text fails at link time. When rice
+ # is not the active mode, still emit the default bowl as harmless data.
+ icon = left_icon()
+ filled = rice['filled'] if rice else _pack(icon)
+ rows+=['#define LEFT_ICON_W '+str(rice['w'] if rice else icon.width)+'u',
+        '#define LEFT_ICON_H '+str(rice['h'] if rice else icon.height)+'u',
+        'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in filled)+',','};']
  blob=bytearray();offs=[]
  for i in range(len(layout['regions'])):
   if i in layout['static']:

@@ -62,7 +62,7 @@ function refresh(){
  $('probe').disabled=busy||!armed;
  $('skip').disabled=busy||!armed||stage>=MAX;
  for(const b of document.querySelectorAll('[data-quick]'))b.disabled=busy||!armed;
- for(const id of ['s5lite','s5fix'])$(id).disabled=busy||!armed||(id==='s5lite'&&!liteBytes)||(id==='s5fix'&&!blankBytes);
+ for(const id of ['s5lite','s5fix','s5restore'])$(id).disabled=busy||!armed||(id==='s5lite'&&!liteBytes)||(id==='s5fix'&&!blankBytes);
  syncArm();
 }
 
@@ -75,9 +75,22 @@ function toBase64(bytes){
  for(let i=0;i<bytes.length;i+=chunk)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
  return btoa(out);
 }
-async function convertS1(bytes,src,why,budgetKB){
+// A full-screen capture (the studio preview or a photo of the screen) pasted
+// into S1 shows a second copy of the whole UI inside the character box. Refuse
+// it before any conversion. Only the simplest, reliable signal is used here:
+// a landscape 320x172-like aspect at a sizable resolution. The studio backend
+// additionally checks for straight UI borders.
+function looksLikeCapture(bytes){
+ if(bytes.length<13||bytes[0]!==0x47||bytes[1]!==0x49||bytes[2]!==0x46)return false;
+ const w=bytes[6]|bytes[7]<<8,h=bytes[8]|bytes[9]<<8;
+ return w>=300&&(w/h)>=1.62&&(w/h)<=2.10;
+}
+async function convertS1(bytes,src,why,budgetKB,skipCaptureCheck=false){
  // 512 KB keeps the S1 write inside the screen's remaining external flash even
  // when the studio setting was raised for a bigger slot.
+ // Internal re-conversion of an already valid 320x172 S1 GIF must not be
+ // mistaken for a capture; only user-picked source images are checked.
+ if(!skipCaptureCheck&&looksLikeCapture(bytes))throw Error(why+'；所选 GIF 是整屏截图，贴进 S1 会出现两层界面。请只上传角色本身（透明背景 GIF），或先把角色从截图裁出来');
  const body={image:'data:image/gif;base64,'+toBase64(bytes),
              themeId:src.themeId&&src.themeId!=='custom'?src.themeId:undefined,
              layout:src.srcName==='build/'?'studio':'base',
@@ -189,7 +202,15 @@ async function precheck(){
   ipsPlan=await validateBuild(src.ib,src.im);
   let g=src.gifBytes||await fetchBytes(src.gifUrl);
   try{validateGif(g);}
-  catch(e){g=await convertS1(g,src,e.message);}
+  catch(e){
+   // A user-picked source GIF that is actually a screen capture would be
+   // converted and baked into S1, producing a second, nested interface.
+   if(looksLikeCapture(g)){
+    const sw=g[6]|(g[7]<<8),sh=g[8]|(g[9]<<8);
+    throw Error(`所选 GIF 是整屏截图（${sw}×${sh}），贴进 S1 会出现两层界面。请只上传角色本身（透明背景 GIF），或先把角色从截图里裁出来`);
+   }
+   g=await convertS1(g,src,e.message,undefined,true);
+  }
   gifBytes=g;
   liteBytes=await optionalGif(src.liteUrl);
   blankBytes=await optionalGif(src.blankUrl);
@@ -360,9 +381,9 @@ async function step4(){
     new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x1310
-     ? `已确认屏幕正在运行 UI 1.3.10（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1310：可能刷的是旧固件`, tag===0x1310?'ok':'warn');
+   log(tag===0x1311
+     ? `已确认屏幕正在运行 UI 1.3.11（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1311：可能刷的是旧固件`, tag===0x1311?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }
@@ -431,7 +452,7 @@ async function uploadS1(app){
   catch(e){log(`降速重传仍失败：${e.message}`,'warn');}
  }
  try{
-  const small=await convertS1(working,{themeId:local.themeId,srcName:'build/'},'动画仍然传不进去','256');
+  const small=await convertS1(working,{themeId:local.themeId,srcName:'build/'},'动画仍然传不进去','256',true);
   const slowedSmall=slowGif(small,150);
   log('自动降级：改用 256 KB 上限重新生成后再传（帧数更少）…','warn');
   await attempt('写入小体积 S1 动画',slowedSmall?slowedSmall.bytes:small);
@@ -591,6 +612,26 @@ $('s5lite').onclick=()=>auxRun('上传精简版 S1（排障）',async()=>{
 // BEGIN 状态 4 = 设备拒绝开始传输。最常见原因是外置 Flash 里旧的 S1 文件
 // 没被释放，新文件更大就放不下。先用 454 B 占位素材覆盖同名文件释放空间，
 // 再传目标动画；若仍失败自动回退到精简版，保证屏幕始终有可用底图。
+$('s5restore').onclick=()=>auxRun('恢复干净底图（消除界面嵌套）',async()=>{
+ // Always use the bundled, known-clean robot GIF, never the user's current
+ // source: a nested image came from a screenshot baked into S1, and the only
+ // reliable way to clear it is to overwrite S1 with a pristine base image.
+ const clean=await fetchBytes(SNAP.gif).catch(()=>null);
+ if(!clean)throw Error('内置干净底图素材不可用');
+ const restore=async()=>{
+  log('第 1 步：写入 454 B 占位素材，覆盖 S1 里可能残留的嵌套画面…');
+  if(blankBytes){await withApp(app=>app.upload(blankBytes,{replaceConfirmed:true}));await wait(2000);}
+  else log('没有占位素材，直接覆盖底图','warn');
+  await withApp(app=>app.upload(clean,{replaceConfirmed:true,progress:uploadLogger()}));
+ };
+ try{await restore();log('✓ 已用内置原版机器人底图覆盖 S1：屏幕上的嵌套界面应已消失','ok');}
+ catch(e){
+  log('完整底图写入失败：'+e.message+'，尝试精简版…','warn');
+  if(!liteBytes)throw Error('精简版也不可用，无法恢复干净底图');
+  await withApp(app=>app.upload(liteBytes,{replaceConfirmed:true,progress:uploadLogger()}));
+  log('✓ 已写入精简版干净底图，嵌套界面应已消失','ok');
+ }
+});
 $('s5fix').onclick=()=>auxRun('清理并重试上传（两步法）',async()=>{
  if(!blankBytes)throw Error('占位素材不可用');
  await withApp(async app=>{

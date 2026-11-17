@@ -1,1 +1,14 @@
-{"left": {"type": "rice"}, "right": ["conn", "caps", "battery"]}
+{
+  "left": {
+    "type": "rice"
+  },
+  "right": [
+    "conn",
+    "caps",
+    "battery"
+  ],
+  "values": {
+    "rate": "1000",
+    "debounce": "5"
+  }
+}

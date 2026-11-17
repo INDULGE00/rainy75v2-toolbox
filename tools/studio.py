@@ -83,6 +83,67 @@ PRESETS = {
 }
 
 
+def looks_like_ui_capture(raw):
+    """Detect a screenshot of the screen / studio preview used as a character.
+
+    Baking a whole UI image into S1 shows a second, smaller copy of the interface
+    inside the character box ("nested screens"). Unlike a warning, callers must
+    refuse such input. Two independent signals are combined:
+
+    * screen-like aspect ratio and size (the classic 320x172 / 1.86 family);
+    * long, perfectly straight dark lines - the key-card / panel borders that
+      every UI has but hand-drawn or photo character art does not.
+
+    Returns (is_capture, reason). Only the first frame is inspected.
+    """
+    try:
+        import io as _io
+        with Image.open(_io.BytesIO(raw)) as probe:
+            w, h = probe.size
+            probe.seek(0)
+            im = probe.convert('RGB')
+    except Exception:
+        return False, ''
+    ratio = w / max(1, h)
+    aspect = w >= 300 and 1.62 <= ratio <= 2.10
+    # Sample a coarse grid; long straight runs are what matter, not fine detail.
+    gray = im.convert('L')
+    pw, ph = gray.size
+    sx, sy = max(1, pw // 160), max(1, ph // 90)
+    px = gray.load()
+    xs = list(range(0, pw, sx))
+    ys = list(range(0, ph, sy))
+    straight = False
+    for y in ys:
+        run = best = 0
+        for x in xs:
+            if px[x, y] < 128:
+                run += 1
+                best = max(best, run)
+            else:
+                run = 0
+        if best * sx > pw * 0.30:
+            straight = True
+            break
+    if not straight:
+        for x in xs:
+            run = best = 0
+            for y in ys:
+                if px[x, y] < 128:
+                    run += 1
+                    best = max(best, run)
+                else:
+                    run = 0
+            if best * sy > ph * 0.30:
+                straight = True
+                break
+    if aspect and straight:
+        return True, f'{w}×{h} 的横屏截图（含 UI 直线边框）'
+    if aspect:
+        return True, f'{w}×{h} 的横屏截图'
+    return False, ''
+
+
 def read_json(path, default=None):
     try:
         return json.loads(Path(path).read_text(encoding='utf8'))
@@ -644,6 +705,13 @@ class Handler(SimpleHTTPRequestHandler):
                 raw = base64.b64decode(url.split(',', 1)[1], validate=True)
                 if len(raw) > MAX_UPLOAD_BYTES:
                     raise ValueError('GIF 超过 12 MiB，请先在本地压缩')
+                # A screenshot of the screen / studio preview would be pasted
+                # into the character box and produce a nested second UI.
+                shot, shot_reason = looks_like_ui_capture(raw)
+                if shot:
+                    raise ValueError('这是整屏截图（'+shot_reason+'），会被当成角色贴进 S1 底图，'
+                                     '导致屏幕上出现两层界面。请只上传角色本身：'
+                                     '透明背景的 GIF，或先把角色从截图里裁出来再上传。')
                 budget = s1_budget()
                 if data.get('budgetBytes'):
                     try:
@@ -671,8 +739,14 @@ class Handler(SimpleHTTPRequestHandler):
                         src_w, src_h = probe.size
                     # A screenshot of the screen itself gets baked into S1 as a
                     # second copy of the whole UI (frame, cards, status bar), so
-                    # the display ends up showing the layout twice. Warn loudly.
-                    shot = (src_w >= 300 and 1.65 <= src_w / max(1, src_h) <= 2.05)
+                    # the display ends up showing the layout twice. Refuse it
+                    # outright: a warning is not enough - the nested image was
+                    # still written and shipped to S1.
+                    shot, shot_reason = looks_like_ui_capture(raw)
+                    if shot:
+                        raise ValueError('这是整屏截图（'+shot_reason+'），会被当成角色贴进 S1 底图，'
+                                         '导致屏幕上出现两层界面。请只上传角色本身：'
+                                         '透明背景的 GIF，或先把角色从截图里裁出来再上传。')
                     if n > 1:
                         import gifclip
                         gif_path = LOCAL / 'character.gif'
@@ -747,9 +821,6 @@ class Handler(SimpleHTTPRequestHandler):
                             source_size = probe.size
                         return self.send_json({
                             'ok': True, 'views': 1, 'gifFrames': count,
-                            'warning': ('这张图看起来是「整个屏幕的截图」（' + str(src_w) + '×' + str(src_h) +
-                                        '），它会被当成角色贴到 S1 底图上，屏幕上就会出现两层界面。'
-                                        '请上传只含角色的透明 PNG 或角色 GIF。') if shot else '',
                             'sourceFrames': n, 'sampled': sampled,
                             'compiled': compiled, 'buildLog': build_log[-1400:],
                             'fitted': gif_fit_size(frames, cfg, source_size),

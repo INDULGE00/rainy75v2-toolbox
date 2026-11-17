@@ -444,6 +444,7 @@ async function upload(file) {
           ? `已导入 ${d.gifFrames} 帧（源 ${d.sourceFrames} 帧，因输出超过 4 MiB 或超过安全上限而自动抽帧）`
           : `已导入 ${d.gifFrames} 帧 GIF 原动画 · 全部帧完整保留，未抽帧`)
       : `已识别 ${d.views} 个视角并写入 local/views/（未改动仓库源码）`, 'ok');
+    if (d.warning) log('⚠ ' + d.warning, 'err');
     if (d.buildLog) log(d.buildLog.slice(-700));
     if (d.compiled) {
       log('IPS 固件已自动重新编译：刷屏幕固件 + 上传 S1 后即可直接显示', 'ok');

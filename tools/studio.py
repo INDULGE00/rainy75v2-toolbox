@@ -631,6 +631,7 @@ class Handler(SimpleHTTPRequestHandler):
                 blob = got.pop('gif')
                 return self.send_json({'ok': True, 'gif': 'data:image/gif;base64,'
                                       + base64.b64encode(blob).decode(), **got})
+            upload_warning = ''
             if path == '/api/upload':
                 url = data.get('image') or ''
                 if isinstance(url, str) and url.startswith('data:image/gif'):
@@ -639,6 +640,11 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError('GIF 超过 12 MiB')
                     with Image.open(io.BytesIO(raw)) as probe:
                         n = probe.n_frames
+                        src_w, src_h = probe.size
+                    # A screenshot of the screen itself gets baked into S1 as a
+                    # second copy of the whole UI (frame, cards, status bar), so
+                    # the display ends up showing the layout twice. Warn loudly.
+                    shot = (src_w >= 300 and 1.65 <= src_w / max(1, src_h) <= 2.05)
                     if n > 1:
                         import gifclip
                         gif_path = LOCAL / 'character.gif'
@@ -713,6 +719,9 @@ class Handler(SimpleHTTPRequestHandler):
                             source_size = probe.size
                         return self.send_json({
                             'ok': True, 'views': 1, 'gifFrames': count,
+                            'warning': ('这张图看起来是「整个屏幕的截图」（' + str(src_w) + '×' + str(src_h) +
+                                        '），它会被当成角色贴到 S1 底图上，屏幕上就会出现两层界面。'
+                                        '请上传只含角色的透明 PNG 或角色 GIF。') if shot else '',
                             'sourceFrames': n, 'sampled': sampled,
                             'compiled': compiled, 'buildLog': build_log[-1400:],
                             'fitted': gif_fit_size(frames, cfg, source_size),

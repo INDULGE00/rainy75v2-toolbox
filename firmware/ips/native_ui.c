@@ -107,15 +107,12 @@ static void draw_speed(unsigned text_slot){
 }
 /* Left slot as a five-bowl battery gauge: ceil(percent/20) bowls are filled. */
 static void draw_rice(void){
- unsigned i,x,y,n;const u8 *src;
+ unsigned i,x,y,n;
  if(!ui.known||ui.battery>100u)return;
  n=(ui.battery+19u)/20u;if(n>5u)n=5u;
- for(i=0;i<5u;i++){
-  src=i<n?left_icon_filled:left_icon_empty;
-  for(y=0;y<LEFT_ICON_H;y++)for(x=0;x<LEFT_ICON_W;x++){
-   unsigned bit=y*LEFT_ICON_W+x;
-   if(src[bit>>3]&(128u>>(bit&7)))dot(1,i*(LEFT_ICON_W+2u)+x,y);
-  }
+ for(i=0;i<n;i++)for(y=0;y<LEFT_ICON_H;y++)for(x=0;x<LEFT_ICON_W;x++){
+  unsigned bit=y*LEFT_ICON_W+x;
+  if(left_icon_filled[bit>>3]&(128u>>(bit&7)))dot(1,i*(LEFT_ICON_W+2u)+x,y);
  }
 }
 static void status_build(void){
@@ -193,7 +190,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1305;break; /* UI build tag: 1.3.5 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1306;break; /* UI build tag: 1.3.6 */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

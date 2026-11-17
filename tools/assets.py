@@ -257,15 +257,14 @@ def _sym_fish():
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
 RICE_ART = (
-    '....####....',
-    '..########..',
-    '.##########.',
-    '############',
-    '############',
-    '.##########.',
-    '..########..',
-    '...######...',
-    '..########..',
+    '...###...',
+    '..#...#..',
+    '.#.....#.',
+    '#########',
+    '#########',
+    '.#######.',
+    '..#####..',
+    '...###...',
 )
 
 
@@ -287,21 +286,16 @@ def _outline(im):
 
 
 def left_icon():
-    """Filled rice glyph, optionally replaced by local/left-icon.png."""
-    custom = ROOT / 'local' / 'left-icon.png'
+    """Rice glyph: the pixel-editor drawing in local/left-icon.json if present."""
+    custom = ROOT / 'local' / 'left-icon.json'
     if custom.exists():
-        with Image.open(custom) as src:
-            im = src.convert('L')
-        im = im.point(lambda v: 255 if v < 150 else 0)
-        bb = im.getbbox()
-        if bb:
-            im = im.crop(bb)
-            w, h = im.size
-            scale = min(11 / w, 8 / h)
-            im = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.Resampling.NEAREST)
-        box = Image.new('1', (12, 9), 0)
-        box.paste(im.convert('1'), ((12 - im.width) // 2, (9 - im.height) // 2))
-        return box
+        try:
+            data = load(custom)
+            rows = [str(r) for r in data.get('rows') or []]
+            if rows and len({len(r) for r in rows}) == 1 and set(''.join(rows)) <= {'0', '1'}:
+                return _art([r.replace('0', '.').replace('1', '#') for r in rows])
+        except Exception:
+            pass
     return _art(RICE_ART)
 
 
@@ -355,8 +349,7 @@ def status_layout(theme):
         gap = 2
         width = 5 * icon.width + 4 * gap
         regions.append((16, 14, width, icon.height))
-        rice = {'w': icon.width, 'h': icon.height,
-                'filled': _pack(icon), 'empty': _pack(_outline(icon))}
+        rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon)}
     elif cfg['kind'] == 'time':
         regions.append((16, 13, 94, 14))
     elif cfg['kind'] == 'text':
@@ -468,8 +461,7 @@ def headers(keys,theme,out):
  rice=layout.get('rice')
  if rice:
   rows+=['#define LEFT_ICON_W '+str(rice['w'])+'u','#define LEFT_ICON_H '+str(rice['h'])+'u',
-         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in rice['filled'])+',','};',
-         'static const u8 left_icon_empty[]={',' '+','.join(str(b) for b in rice['empty'])+',','};']
+         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in rice['filled'])+',','};']
  else:
   rows+=['#define LEFT_ICON_W 0u','#define LEFT_ICON_H 0u']
  blob=bytearray();offs=[]
@@ -566,12 +558,11 @@ def preview_frame(theme,keys,key=227):
     cfg=layout['cfg']
     if cfg['kind']=='rice':
         rx,ry,rw,rh=layout['regions'][1]
-        icon=left_icon();empty=_outline(icon);filled=(78+19)//20
-        for i in range(5):
-            src=icon if i<filled else empty
-            for y in range(src.height):
-                for x in range(src.width):
-                    if src.getpixel((x,y)):d.point((rx+i*(icon.width+2)+x,ry+y),fill=theme['ink'])
+        icon=left_icon();filled=(78+19)//20
+        for i in range(min(5,filled)):
+            for y in range(icon.height):
+                for x in range(icon.width):
+                    if icon.getpixel((x,y)):d.point((rx+i*(icon.width+2)+x,ry+y),fill=theme['ink'])
     if cfg['kind']=='time':
         rx,ry,rw,rh=layout['regions'][1]
         text_at('12:34:56',rx,ry,2)

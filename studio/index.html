@@ -106,13 +106,11 @@
       <label class="radio"><input type="radio" name="sb-left" value="text"> 自定义文字</label>
       <label class="radio"><input type="radio" name="sb-left" value="rice"> 米饭图标（显示电量，5 格）</label>
       <label class="row"><span>文字内容（最多 6 字）</span><input type="text" id="sb-text" maxlength="6" placeholder="南柯一梦"></label>
-      <div class="row"><span>米饭图标</span>
-        <label class="file-btn ghost">换成自己的图（自动转点阵）
-          <input type="file" id="sb-icon" accept="image/png,image/jpeg,image/webp" hidden>
-        </label>
+      <div class="row"><span>米饭图标（点格子自己画）</span>
         <button id="sb-icon-clear" class="ghost">恢复默认</button>
       </div>
-      <p class="hint">选「米饭图标」时：电量 78% → 4 个实心、1 个空心；90% 以上 → 5 个全实心。上传的图片会按亮度转成 12×9 的单色点阵放在左上角。</p>
+      <div id="sb-icon-editor" class="pix-editor"></div>
+      <p class="hint">选「米饭图标」时按电量亮格：78% → 4 个，90% 以上 → 5 个，没电的格子直接不画。点格子画/擦，画完点「保存状态栏」。</p>
     </div>
     <div>
       <p class="label">右边（最多 3 项，列表顺序 = 屏幕从左到右）</p>

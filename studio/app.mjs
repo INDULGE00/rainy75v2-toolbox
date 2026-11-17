@@ -295,6 +295,49 @@ function writeStatusbarForm(cfg) {
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
+const RICE_DEFAULT = ['000111000', '001000100', '010000010', '111111111',
+  '111111111', '011111110', '001111100', '000111000'];
+let riceRows = RICE_DEFAULT.slice();
+let ricePainting = false;
+function renderRiceEditor() {
+  const box = $('#sb-icon-editor');
+  if (!box) return;
+  box.style.gridTemplateColumns = `repeat(${riceRows[0].length}, 22px)`;
+  box.replaceChildren();
+  riceRows.forEach((row, y) => {
+    [...row].forEach((cell, x) => {
+      const c = document.createElement('span');
+      c.className = cell === '1' ? 'px on' : 'px';
+      c.dataset.x = String(x); c.dataset.y = String(y);
+      c.onmousedown = e => { e.preventDefault(); ricePainting = true; paintCell(x, y); };
+      c.onmouseenter = () => { if (ricePainting) paintCell(x, y); };
+      box.append(c);
+    });
+  });
+}
+function paintCell(x, y) {
+  const row = riceRows[y];
+  const next = row[x] === '1' ? '0' : '1';
+  riceRows[y] = row.slice(0, x) + next + row.slice(x + 1);
+  const el = $(`#sb-icon-editor .px[data-x="${x}"][data-y="${y}"]`);
+  if (el) el.className = next === '1' ? 'px on' : 'px';
+}
+document.addEventListener('mouseup', () => { ricePainting = false; });
+$('#sb-icon-clear').onclick = () => {
+  riceRows = RICE_DEFAULT.slice();
+  renderRiceEditor();
+  log('已把米饭图标恢复成默认点阵（保存状态栏后生效）');
+};
+$('#sb-icon-clear').onclick = async () => {
+  try {
+    const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                           body: JSON.stringify({ clear: true }) });
+    if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
+    log('已恢复默认米饭图标', 'ok');
+    $('#sb-status').textContent = '已恢复默认图标';
+  } catch (e) { log('恢复失败：' + e.message, 'err'); }
+};
+
 function renderForm() {
   const c = S.character || DEFAULT_CHAR;
   $('#theme-id').value = S.themeId;
@@ -372,6 +415,8 @@ async function loadState() {
   S = r.data;
   S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
   writeStatusbarForm(S.statusbar || {});
+  if (S.leftIcon && S.leftIcon.rows && S.leftIcon.rows.length) riceRows = S.leftIcon.rows.slice();
+  renderRiceEditor();
   setBusy(false); renderForm();
 }
 
@@ -475,7 +520,7 @@ $('#sb-save').onclick = async () => {
   $('#sb-save').disabled = true;
   try {
     const r = await api('/api/statusbar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify(cfg) });
+                                            body: JSON.stringify({ ...cfg, icon: riceRows }) });
     if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
     S.statusbar = r.data.statusbar;
     writeStatusbarForm(S.statusbar);
@@ -485,30 +530,6 @@ $('#sb-save').onclick = async () => {
     $('#sb-status').textContent = e.message;
     log('状态栏保存失败：' + e.message, 'err');
   } finally { $('#sb-save').disabled = false; }
-};
-$('#sb-icon').onchange = async () => {
-  const file = $('#sb-icon').files && $('#sb-icon').files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                             body: JSON.stringify({ image: reader.result }) });
-      if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
-      log('左上角图标已更新：' + r.data.w + '×' + r.data.h + ' 点阵，点「应用并重新编译 IPS 固件」后生效', 'ok');
-      $('#sb-status').textContent = '图标已更新，待编译';
-    } catch (e) { log('图标转换失败：' + e.message, 'err'); }
-  };
-  reader.readAsDataURL(file);
-};
-$('#sb-icon-clear').onclick = async () => {
-  try {
-    const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                           body: JSON.stringify({ clear: true }) });
-    if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
-    log('已恢复默认米饭图标', 'ok');
-    $('#sb-status').textContent = '已恢复默认图标';
-  } catch (e) { log('恢复失败：' + e.message, 'err'); }
 };
 $('#apply').onclick = () => apply(true);
 $('#assets-only').onclick = () => apply(false);

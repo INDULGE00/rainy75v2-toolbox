@@ -426,6 +426,7 @@ def state_payload():
         's1Budget': s1_budget(),
         's1BudgetOptions': S1_BUDGETS,
         'statusbar': read_json(ROOT / 'profiles' / 'statusbar.json', {}),
+        'leftIcon': read_json(LOCAL / 'left-icon.json', {}),
         'stockReady': STOCK.exists(),
         'mainStockReady': MAIN_STOCK.exists(),
         'clang': find_clang(),
@@ -572,37 +573,10 @@ class Handler(SimpleHTTPRequestHandler):
                     raw = saved.read_bytes()
                 return self.send_json({'ok': True, 'palettes': extract_palette(raw)})
             if path == '/api/left-icon':
-                target = LOCAL / 'left-icon.png'
-                if data.get('clear'):
-                    if target.exists():
-                        target.unlink()
-                    return self.send_json({'ok': True, 'cleared': True,
-                                           'log': '已恢复默认米饭图标'})
-                url = data.get('image') or ''
-                if not (isinstance(url, str) and url.startswith('data:image/')):
-                    raise ValueError('请选择一张图片（PNG / JPG / WebP）')
-                raw = base64.b64decode(url.split(',', 1)[1], validate=True)
-                if len(raw) > 8 * 1024 * 1024:
-                    raise ValueError('图片超过 8 MiB，请先缩小')
-                with Image.open(io.BytesIO(raw)) as src:
-                    grey = src.convert('L')
-                # threshold, crop to the artwork, fit into a 12x9 cell grid
-                mask = grey.point(lambda v: 255 if v < 150 else 0)
-                bb = mask.getbbox()
-                if not bb:
-                    raise ValueError('这张图识别不出图案（太亮或太空）')
-                mask = mask.crop(bb)
-                scale = min(11 / mask.width, 8 / mask.height, 1.0)
-                if scale < 1.0:
-                    mask = mask.resize((max(1, round(mask.width * scale)),
-                                        max(1, round(mask.height * scale))),
-                                       Image.Resampling.NEAREST)
-                box = Image.new('1', (12, 9), 0)
-                box.paste(mask.convert('1'), ((12 - mask.width) // 2, (9 - mask.height) // 2))
-                LOCAL.mkdir(parents=True, exist_ok=True)
-                box.save(target)
-                return self.send_json({'ok': True, 'w': 12, 'h': 9,
-                                       'log': '已把图片转成 12×9 单色点阵'})
+                target = LOCAL / 'left-icon.json'
+                if target.exists():
+                    target.unlink()
+                return self.send_json({'ok': True, 'cleared': True, 'log': '已恢复默认米饭图标'})
             if path == '/api/statusbar':
                 left = data.get('left') or {}
                 kind = left.get('type')
@@ -618,6 +592,14 @@ class Handler(SimpleHTTPRequestHandler):
                           for k in ('rate', 'debounce')}
                 cfg = {'left': {'type': kind, 'text': text, 'bowls': bowls, 'fish': fish},
                        'right': right, 'values': values}
+                rows = data.get('icon')
+                if isinstance(rows, list) and rows:
+                    rows = [str(r) for r in rows]
+                    if (len({len(r) for r in rows}) != 1 or set(''.join(rows)) - {'0', '1'}
+                            or not 1 <= len(rows) <= 16 or not 1 <= len(rows[0]) <= 20):
+                        raise ValueError('米饭点阵格式不对（每行等长、只能 0/1，最多 16×20）')
+                    LOCAL.mkdir(parents=True, exist_ok=True)
+                    write_json(LOCAL / 'left-icon.json', {'w': len(rows[0]), 'h': len(rows), 'rows': rows})
                 write_json(ROOT / 'profiles' / 'statusbar.json', cfg)
                 layout = assets.status_layout(all_themes().get(
                     (read_json(BUILD_IPS / 'manifest.json', {}) or {}).get('theme') or 'pink')

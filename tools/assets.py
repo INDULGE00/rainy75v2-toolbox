@@ -7,12 +7,14 @@ ROOT=Path(__file__).resolve().parents[1]
 # Studio mode is opt-in via env var. With it off, generation stays byte-identical
 # to the shipped assets/ GIFs so the repository's own contract tests keep passing.
 STUDIO=os.environ.get('RAINY75_STUDIO')=='1'
-BASE_REGIONS=[(40,57,120,76),(16,13,94,14),(225,10,24,20),(257,15,22,10),(287,17,23,7),(202,15,15,9)]
+# Key-card region moved up to y=52 (from y=57) to sit closer to the status bar;
+# the factory only repaints y=7..20 so the bar itself cannot move lower.
+BASE_REGIONS=[(40,52,120,76),(16,13,94,14),(225,10,24,20),(257,15,22,10),(287,17,23,7),(202,15,15,9)]
 # Studio layout centres the big-key region inside the taller, RAINY-free card.
 # Only the y coordinate moves; all mask sizes (and the mask total) stay put.
 # Region 5 is the caps-lock lamp+letter in the top bar, left of the connection
 # icon: filled disc + 'A' = caps on, hollow ring + 'a' = caps off.
-STUDIO_REGIONS=[(40,62,120,76),*BASE_REGIONS[1:]]
+STUDIO_REGIONS=[(40,55,120,76),*BASE_REGIONS[1:]]
 REGIONS=BASE_REGIONS
 def regions():return STUDIO_REGIONS if STUDIO else BASE_REGIONS
 # Connection icons, 24x20 1-bit rows, drawn at ui_geo[2] (225,10) by native_ui.c.
@@ -406,7 +408,7 @@ def status_layout(theme):
     """Compute regions, widget table and pre-rendered (static) bitmaps."""
     cfg = status_config()
     font = load(ROOT / 'profiles' / 'font.json')['ascii']
-    regions = [(40, 57, 120, 76)] if not STUDIO else [(40, 62, 120, 76)]
+    regions = [(40, 52, 120, 76)] if not STUDIO else [(40, 55, 120, 76)]
     static = {}
     widgets = []
     # ---- left slot (region 1) ----
@@ -554,16 +556,18 @@ def headers(keys,theme,out):
 def base_frame(theme,phase=0):
  im=Image.new('RGB',(320,172),theme['background']);d=ImageDraw.Draw(im)
  if STUDIO:
-  # Cleaner grid: 4px frame inset, 12px side margins, key card vertically centred.
-  d.rounded_rectangle((8,36,312,164),radius=16,fill=theme['shell'])
-  d.rounded_rectangle((12,40,308,160),radius=12,fill=theme['background'])
-  d.rounded_rectangle((24,48,176,152),radius=12,fill=theme['ink'])
-  d.rounded_rectangle((27,51,173,149),radius=9,fill=theme['panel'])
+  # Card starts just under the y=7..20 status band and keeps the original
+  # bottom edge, so the gap above the key area is small without wasting space
+  # below the character.
+  d.rounded_rectangle((8,25,312,164),radius=16,fill=theme['shell'])
+  d.rounded_rectangle((12,29,308,160),radius=12,fill=theme['background'])
+  d.rounded_rectangle((24,37,176,152),radius=12,fill=theme['ink'])
+  d.rounded_rectangle((27,40,173,149),radius=9,fill=theme['panel'])
  else:
-  d.rounded_rectangle((7,37,312,165),radius=16,fill=theme['shell'])
-  d.rounded_rectangle((12,42,307,160),radius=13,fill=theme['background'])
-  d.rounded_rectangle((24,45,176,145),radius=13,fill=theme['ink'])
-  d.rounded_rectangle((27,48,173,142),radius=10,fill=theme['panel'])
+  d.rounded_rectangle((7,24,312,165),radius=16,fill=theme['shell'])
+  d.rounded_rectangle((12,29,307,160),radius=13,fill=theme['background'])
+  d.rounded_rectangle((24,34,176,145),radius=13,fill=theme['ink'])
+  d.rounded_rectangle((27,37,173,142),radius=10,fill=theme['panel'])
  cfg=character()
  if cfg and cfg.get('enabled') and _CHAR_SPRITES:
   draw_character(im,theme,phase,cfg,_CHAR_SPRITES)
@@ -684,7 +688,7 @@ def validate_cache_gif(path,theme):
    if not gif.tile or gif.tile[0][1]!=(0,0,320,172):raise ValueError('Cache GIF requires complete frames')
    if gif.disposal_method!=1:raise ValueError('Cache GIF must retain the previous frame (disposal=1)')
    if 'transparency' in gif.info:raise ValueError('Cache GIF frames must be opaque')
-   color=gif.convert('RGB').getpixel((22,39))
+   color=gif.convert('RGB').getpixel((10,60))
    if rgb565('#%02x%02x%02x'%color)==bg:raise ValueError('Cache frame marker equals player background')
 def generate(keys_path,theme_name,out,header_dir=None):
  keys=validate_keys(load(keys_path));themes=load_themes()
@@ -696,6 +700,20 @@ def generate(keys_path,theme_name,out,header_dir=None):
  frames=[base_frame(theme,i) for i in range(count)]
  save_cache_gif(frames,out/f'robot-{theme_name}.gif',duration)
  validate_cache_gif(out/f'robot-{theme_name}.gif',theme)
+ # Screen-safe fallbacks: 150 ms/frame (the rate the diagnostic page uses to
+ # fix UART starvation) and a tiny 24-frame variant for tight external flash.
+ # These are uploaded by the wizard when the full animation is refused, so
+ # they must exist in every build/snapshot.
+ def fallback(path,seq,ms):
+  cut=[frames[round(i*(len(frames)-1)/max(1,len(seq)-1))] for i in range(len(seq))] if len(seq)<len(frames) else frames
+  save_cache_gif(cut,path,ms)
+  validate_cache_gif(path,theme)
+ fallback(out/f'robot-{theme_name}-lite.gif',range(min(24,len(frames))),150)
+ blank=Image.new('RGB',(320,172),theme['background'])
+ # Keep the marker pixel distinct from the background so the cache contract holds.
+ ImageDraw.Draw(blank).point((10,60),fill=theme['ink'])
+ save_cache_gif([blank],out/f'robot-{theme_name}-blank.gif',400)
+ validate_cache_gif(out/f'robot-{theme_name}-blank.gif',theme)
  preview_frame(theme,keys).save(out/f'preview-{theme_name}.png')
  return out/f'robot-{theme_name}.gif'
 if __name__=='__main__':

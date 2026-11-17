@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Read-only clock diagnostics plus two explicit, user-triggered repairs.
 import {AppClient} from './hid.mjs';
-import {decodeTime} from './protocol.mjs';
+import {decodeTime,screenSafeGif} from './protocol.mjs';
 
 const $=id=>document.getElementById(id);
 const hex=v=>'0x'+(v>>>0).toString(16).toUpperCase().padStart(4,'0');
@@ -16,15 +16,19 @@ async function read(c,label,fn){
 }
 function verdict(text,bad){const v=$('verdict');v.textContent=text;v.classList.toggle('bad',Boolean(bad));}
 
-function slowGif(bytes,ms=150){
- const b=new Uint8Array(bytes),delay=Math.round(ms/10);let frames=0;
- for(let i=0;i<b.length-7;i++){
-  if(b[i]===0x21&&b[i+1]===0xF9&&b[i+2]===0x04&&b[i+7]===0x00){
-   b[i+4]=delay&255;b[i+5]=(delay>>8)&255;frames++;i+=7;
-  }
+const slowGif=screenSafeGif;
+// The GIF to repair must be the one the wizard would upload, not a hardcoded
+// theme name (older builds used "ocean" which no longer ships). Prefer the
+// current build asset, then the bundled snapshot; allow a local file to be
+// picked so a custom character animation can be slowed as well.
+async function repairSource(){
+ const info=await fetch('../toolbox/firmware/info.json').then(r=>r.ok?r.json():null).catch(()=>null);
+ const theme=info?.theme||'pink';
+ for(const url of [`../build/ips/assets/robot-${theme}.gif`,'../toolbox/firmware/s1-full.gif']){
+  const r=await fetch(url).catch(()=>null);
+  if(r?.ok)return {url,bytes:new Uint8Array(await r.arrayBuffer())};
  }
- if(!frames)throw Error('未找到 GIF 帧延迟块，文件可能被压缩过');
- return {bytes:b,frames};
+ throw Error('找不到可修复的 S1 GIF：请在主题定制台重新生成动画，或用刷机向导重新上传');
 }
 
 $('connect').onclick=async()=>{
@@ -83,11 +87,9 @@ $('slow').onclick=async()=>{
  if(!client)return;
  try{
   $('slow').disabled=true;
-  const r=await fetch('../build/ips/assets/robot-ocean.gif');
-  if(!r.ok)throw Error('读取本机 S1 GIF 失败 (HTTP '+r.status+')');
-  const src=new Uint8Array(await r.arrayBuffer());
-  const {bytes,frames}=slowGif(src,150);
-  log(`已把 ${frames} 帧的时长改为 150ms（原 60ms），准备覆盖上传 S1…`);
+  const picked=await repairSource();
+  const {bytes,frames}=slowGif(picked.bytes,150);
+  log(`已把 ${frames} 帧的时长改为 150ms，来源 ${picked.url.split('/').pop()}，准备覆盖上传 S1…`);
   $('fix').textContent='正在上传 S1 素材，请保持 USB 连接…';
   await client.upload(bytes,{replaceConfirmed:true,progress:p=>{if(p===1)log('S1 上传已应答','ok');}});
   log('完成：屏幕解码负载降到原来的约 40%，时间/状态推送应恢复正常','ok');

@@ -2,7 +2,7 @@
 // 一键刷机向导：自动加载本机已编译固件、完整校验、锁定顺序、自动擦写与校时。
 // 不修改仓库原有刷机逻辑，仅复用 hid.mjs / protocol.mjs 的既有校验与协议实现。
 import {AppClient,FlashClient,wait} from './hid.mjs';
-import {validateBuild,validateGif,TARGETS,sha256} from './protocol.mjs';
+import {validateBuild,validateGif,TARGETS,sha256,screenSafeGif,S1_FRAME_MIN_MS} from './protocol.mjs';
 
 const $=id=>document.getElementById(id);
 const F={
@@ -211,6 +211,15 @@ async function precheck(){
    }
    g=await convertS1(g,src,e.message,undefined,true);
   }
+  // Normalise frame delays up front, exactly like the diagnostic page's
+  // "降低动画负载" fix. A GIF exported at 20-60 ms/frame starves the screen's
+  // UART ACK polling during upload, which is why the normal flow failed while
+  // the slowed diagnostic upload succeeded.
+  const safe=screenSafeGif(g);
+  if(safe&&safe.raised){
+   g=safe.bytes;
+   log(`动画帧时长过短（${safe.raised}/${safe.frames} 帧），已自动降到 ≥${S1_FRAME_MIN_MS} ms 以匹配屏幕解码能力（等同诊断页的「降低动画负载」）`,'warn');
+  }
   gifBytes=g;
   liteBytes=await optionalGif(src.liteUrl);
   blankBytes=await optionalGif(src.blankUrl);
@@ -381,9 +390,9 @@ async function step4(){
     new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x1311
-     ? `已确认屏幕正在运行 UI 1.3.11（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1311：可能刷的是旧固件`, tag===0x1311?'ok':'warn');
+   log(tag===0x1312
+     ? `已确认屏幕正在运行 UI 1.3.12（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1312：可能刷的是旧固件`, tag===0x1312?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }
@@ -409,17 +418,9 @@ function uploadProgress(label){
 // 454 B placeholder first rewrites the same file name and frees the slot, then
 // the real animation goes in - all inside one HID session to avoid extra
 // device-picker dialogs.
-// Rewrite every GIF frame delay: high frame rates starve the screen's UART ACK
-// polling, which is what makes a perfectly sized animation fail mid-upload.
-function slowGif(bytes,ms=150){
- const b=new Uint8Array(bytes),delay=Math.round(ms/10);let frames=0;
- for(let i=0;i<b.length-7;i++){
-  if(b[i]===0x21&&b[i+1]===0xF9&&b[i+2]===0x04&&b[i+7]===0x00){
-   b[i+4]=delay&255;b[i+5]=(delay>>8)&255;frames++;i+=7;
-  }
- }
- return frames?{bytes:b,frames}:null;
-}
+// Fallback used only if the first (already normalised) upload still fails.
+// screenSafeGif only raises short delays; it never speeds up a slow GIF.
+const slowGif=screenSafeGif;
 async function uploadS1(app){
  const attempt=async(label,bytes)=>{
   log(`${label}：${(bytes.length/1024).toFixed(0)} KB / 约 ${Math.ceil(bytes.length/232)} 包`, 'info');

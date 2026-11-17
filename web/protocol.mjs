@@ -25,6 +25,22 @@ export function validateGif(bytes){
  if(w!==320||h!==172)throw Error(`GIF 尺寸是 ${w}×${h}，必须严格 320×172（${mb} MB）。原图请用「主题定制台」上传，它会自动裁切/缩放并按「动画体积上限」抽帧`);
  if(bytes.length>4*1024*1024)throw Error(`GIF 有 ${mb} MB，超过 4 MB 上限：到「主题定制台」把「动画体积上限」调到 256/512 KB 重新生成`);
 }
+// The screen's GIF decoder polls the UART for ACKs between frames. A source
+// exported at 20-60 ms/frame starves that polling so the upload stalls; the
+// diagnostic page's "降低动画负载" (150 ms) always works. Raise short frame
+// delays to a safe minimum before ANY upload, preserving already slow frames.
+export const S1_FRAME_MIN_MS=150;
+export function screenSafeGif(bytes,minMs=S1_FRAME_MIN_MS){
+ const b=new Uint8Array(bytes),delay=Math.round(minMs/10);let frames=0,raised=0;
+ for(let i=0;i<b.length-7;i++){
+  if(b[i]===0x21&&b[i+1]===0xF9&&b[i+2]===0x04&&b[i+7]===0x00){
+   const cur=b[i+4]|(b[i+5]<<8);frames++;
+   if(cur&&cur<delay){b[i+4]=delay&255;b[i+5]=(delay>>8)&255;raised++;}
+   i+=7;
+  }
+ }
+ return frames?{bytes:b,frames,raised}:null;
+}
 export async function sha256(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');}
 export const TARGETS={main:{pid:0x3079,base:0x2000,bytes:294912,boot:[0xbe,0xfc,4,0xed]},ips:{pid:0x3078,base:0x4000,bytes:507904,boot:[0xbe,0xfc,5,0,0xed]}};
 export async function validateBuild(bytes,m){

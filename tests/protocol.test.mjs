@@ -6,3 +6,22 @@ test('ACK integrity and explicit legacy compatibility',()=>{const p=new Uint8Arr
 test('CCITT CRC and valid BCD/midnight differences',()=>{assert.equal(crc16(new TextEncoder().encode('123456789')),0x29b1);assert.equal(decodeTime(0x235959).text,'23:59:59');assert.equal(decodeTime(0x249999),null);assert.equal(decodeTime(0xffffffff),null);assert.equal(timeDifference(1,86399),2);});
 test('only exact known application sizes and targets before erase',async()=>{const bytes=new Uint8Array(294912),m={format:'rainy75v2-tft/build-v1',target:'main',applicationBase:0x2000,iapPid:0x3079,bytes:bytes.length,sha256:await sha256(bytes)};assert.equal((await validateBuild(bytes,m)).pid,0x3079);await assert.rejects(()=>validateBuild(bytes,{...m,applicationBase:0}),/target|目标/);bytes[2]=1;await assert.rejects(()=>validateBuild(bytes,m),/SHA/);});
 test('GIF upload rejects non-GIF and wrong canvas dimensions',()=>{assert.throws(()=>validateGif(new Uint8Array(20)));const p=new Uint8Array(14);p.set(new TextEncoder().encode('GIF89a'));p.set([0x40,1,0xac,0],6);assert.doesNotThrow(()=>validateGif(p));p[6]=1;assert.throws(()=>validateGif(p));assert.throws(()=>frame(1,0,0,0,new Uint8Array(300)));});
+import {screenSafeGif,S1_FRAME_MIN_MS} from '../web/protocol.mjs';
+test('screenSafeGif raises only short frame delays, never slows the slow ones',()=>{
+ const gce=(d)=>[0x21,0xf9,0x04,0, d&255, (d>>8)&255, 0, 0];
+ const bytes=new Uint8Array([...gce(3),...gce(12),...gce(40)]);
+ const out=screenSafeGif(bytes);
+ assert.equal(out.frames,3);
+ assert.equal(out.raised,2);            // 30 and 120 ms are below 150
+ assert.equal(out.bytes[4]|out.bytes[5]<<8,S1_FRAME_MIN_MS/10);
+ assert.equal(out.bytes[12]|out.bytes[13]<<8,S1_FRAME_MIN_MS/10);
+ assert.equal(out.bytes[20]|out.bytes[21]<<8,40);  // slow frame untouched
+ assert.deepEqual([...bytes],[...gce(3),...gce(12),...gce(40)]); // input not mutated
+});
+test('screenSafeGif leaves already safe animations byte-identical',()=>{
+ const gce=(d)=>[0x21,0xf9,0x04,0, d&255, (d>>8)&255, 0, 0];
+ const bytes=new Uint8Array([...gce(15),...gce(20)]);
+ const out=screenSafeGif(bytes);
+ assert.equal(out.raised,0);
+ assert.deepEqual([...out.bytes],[...bytes]);
+});

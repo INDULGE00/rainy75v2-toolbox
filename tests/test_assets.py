@@ -14,7 +14,7 @@ class AssetsTest(unittest.TestCase):
      bg=rgb565(load(ROOT/'profiles/themes.json')[theme]['background'])
      for i in range(im.n_frames):
       im.seek(i);self.assertEqual(im.tile[0][1],(0,0,320,172));self.assertEqual(im.disposal_method,1);self.assertNotIn('transparency',im.info);self.assertEqual(im.info['duration'],120)
-      frame=im.convert('RGB');color=frame.getpixel((22,39));self.assertNotEqual(rgb565('#%02x%02x%02x'%color),bg)
+      frame=im.convert('RGB');color=frame.getpixel((10,60));self.assertNotEqual(rgb565('#%02x%02x%02x'%color),bg)
       self.assertIsNone(ImageChops.difference(frame,base_frame(load(ROOT/'profiles/themes.json')[theme],i)).getbbox())
     self.assertIn('UI_IDLE_MS 0u',(Path(d)/'headers/ui_assets.h').read_text())
  def test_shipped_robot_files_match_generator_and_cache_contract(self):

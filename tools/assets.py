@@ -88,6 +88,251 @@ def validate_keys(profile):
   if any(len(row)!=len(rows[0]) or set(row)-{'0','1'} for row in rows):raise ValueError('Invalid glyph cells')
   if len(rows[0])*6>120 or len(rows)*6>76:raise ValueError('Glyph does not fit key region')
  return profile
+
+# --------------------------------------------------------------------------
+# Status bar: left slot (time / custom text / rice+fish) and up to three
+# right-hand widgets (connection, caps, battery, typing speed, report rate,
+# debounce). The layout is baked at compile time so the firmware only walks a
+# generated table; see profiles/statusbar.json for the knobs.
+# --------------------------------------------------------------------------
+STATUSBAR_FILE = ROOT / 'profiles' / 'statusbar.json'
+STATUS_TEXT_MAX = 6
+STATUS_BOWLS_MAX = 5
+# width/height of the icon and value boxes, plus the widget kind the firmware
+# switches on: 0 conn, 1 caps, 2 battery, 3 typing speed, 4/5 static values.
+STATUS_WIDGETS = {
+    'conn':     (24, 20, 0, 0, 0),
+    'caps':     (15, 9, 0, 0, 1),
+    'battery':  (22, 10, 23, 7, 2),
+    'speed':    (12, 12, 23, 7, 3),
+    'rate':     (12, 12, 23, 7, 4),
+    'debounce': (12, 12, 23, 7, 5),
+}
+STATUS_RIGHT_MAX = 3
+STATUS_GAP = 9
+STATUS_RIGHT_EDGE = 310
+CJK_FONTS = ('C:/Windows/Fonts/msyh.ttc', 'C:/Windows/Fonts/simhei.ttf',
+             'C:/Windows/Fonts/simsun.ttc', 'C:/Windows/Fonts/Deng.ttf',
+             '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc')
+
+
+def status_config():
+    """Read and sanitise profiles/statusbar.json."""
+    cfg = load(STATUSBAR_FILE) if STATUSBAR_FILE.exists() else {}
+    left = cfg.get('left') or {}
+    kind = left.get('type', 'time')
+    if kind not in ('time', 'text', 'bowl'):
+        kind = 'time'
+    text = ''.join(str(left.get('text') or ''))[:STATUS_TEXT_MAX]
+    bowls = max(0, min(STATUS_BOWLS_MAX, int(left.get('bowls') or 0)))
+    fish = 1 if int(left.get('fish') or 0) else 0
+    if kind == 'text' and not text:
+        kind, text = 'time', ''
+    if kind == 'bowl' and not (bowls or fish):
+        kind = 'time'
+    right = []
+    for wid in cfg.get('right') or []:
+        if wid in STATUS_WIDGETS and wid not in right:
+            right.append(wid)
+    right = right[:STATUS_RIGHT_MAX]
+    values = {}
+    for key in ('rate', 'debounce'):
+        values[key] = str((cfg.get('values') or {}).get(key) or '--')[:4]
+    return {'kind': kind, 'text': text, 'bowls': bowls, 'fish': fish,
+            'right': right, 'values': values}
+
+
+_cjk_cache = {}
+
+
+def cjk_glyph(ch, size=16):
+    """Render one character to a 16x16 1-bit cell using a system CJK font."""
+    key = (ch, size)
+    if key in _cjk_cache:
+        return _cjk_cache[key]
+    from PIL import ImageFont
+    for path in CJK_FONTS:
+        if not Path(path).exists():
+            continue
+        try:
+            font = ImageFont.truetype(path, size - 1)
+        except OSError:
+            continue
+        im = Image.new('L', (size, size), 0)
+        ImageDraw.Draw(im).text((0, -1), ch, font=font, fill=255)
+        im = im.point(lambda v: 255 if v >= 96 else 0)
+        rows = []
+        for y in range(size):
+            row = ''
+            for x in range(size):
+                row += '1' if im.getpixel((x, y)) else '0'
+            rows.append(row)
+        _cjk_cache[key] = rows
+        return rows
+    raise ValueError('需要系统中文字体来生成自定义文字（Windows 一般自带 msyh.ttc）')
+
+
+def _symbol(size, painter):
+    im = Image.new('1', size, 0)
+    painter(ImageDraw.Draw(im))
+    return im
+
+
+N_LOWER = ('00000', '00000', '11110', '10001', '10001', '10001', '00000')
+
+
+def _sym_rate():
+    """Two lowercase n's, mirroring the reference report-rate glyph."""
+    def paint(d):
+        for i in range(2):
+            for y, row in enumerate(N_LOWER):
+                for x, cell in enumerate(row):
+                    if cell == '1':
+                        d.point((i * 6 + x, y + 2), fill=1)
+    return _symbol((12, 12), paint)
+
+
+def _sym_debounce():
+    def paint(d):
+        d.line([(0, 8), (3, 8), (4, 3), (6, 10), (8, 2), (10, 8), (12, 8)], fill=1, width=2)
+    return _symbol((13, 12), paint)
+
+
+def _sym_speed():
+    def paint(d):
+        d.ellipse((0, 0, 11, 11), outline=1)
+        d.line((6, 6, 10, 2), fill=1)
+        d.ellipse((5, 5, 7, 7), fill=1)
+    return _symbol((12, 12), paint)
+
+
+def _sym_bowl():
+    def paint(d):
+        d.pieslice((2, 0, 12, 8), 180, 360, fill=1)
+        d.line((0, 7, 14, 7), fill=1)
+        d.line((0, 8, 14, 8), fill=1)
+        d.line((2, 9, 12, 9), fill=1)
+        d.line((4, 10, 10, 10), fill=1)
+        d.line((6, 11, 8, 11), fill=1)
+    return _symbol((15, 12), paint)
+
+
+def _sym_fish():
+    def paint(d):
+        d.ellipse((0, 1, 8, 10), outline=1)
+        d.polygon([(10, 3), (13, 1), (13, 10), (10, 8)], fill=1)
+        d.point((2, 4), fill=1)
+    return _symbol((14, 12), paint)
+
+
+def _pack(im):
+    """Pack a 1-bit image row-major, MSB first (same order as firmware dot())."""
+    out = bytearray()
+    acc = 0
+    n = 0
+    for y in range(im.height):
+        for x in range(im.width):
+            acc = (acc << 1) | (1 if im.getpixel((x, y)) else 0)
+            n += 1
+            if n == 8:
+                out.append(acc)
+                acc = 0
+                n = 0
+    if n:
+        out.append(acc << (8 - n))
+    return bytes(out)
+
+
+def _paste_text(im, text, x, y, font):
+    pos = x
+    for ch in text:
+        glyph = font.get(ch) or font.get('?')
+        for yy, row in enumerate(glyph):
+            for xx, cell in enumerate(row):
+                if cell == '1' and 0 <= pos + xx < im.width and 0 <= y + yy < im.height:
+                    im.putpixel((pos + xx, y + yy), 1)
+        pos += 6
+    return pos
+
+
+def status_layout(theme):
+    """Compute regions, widget table and pre-rendered (static) bitmaps."""
+    cfg = status_config()
+    font = load(ROOT / 'profiles' / 'font.json')['ascii']
+    regions = [(40, 57, 120, 76)] if not STUDIO else [(40, 62, 120, 76)]
+    static = {}
+    widgets = []
+    # ---- left slot (region 1) ----
+    if cfg['kind'] == 'time':
+        regions.append((16, 13, 94, 14))
+    elif cfg['kind'] == 'text':
+        width = max(16, len(cfg['text']) * 18 - 2)
+        res = (16, 11, width, 16)
+        regions.append(res)
+        im = Image.new('1', (width, 16), 0)
+        pos = 0
+        for ch in cfg['text']:
+            glyph = cjk_glyph(ch, 16)
+            for y, row in enumerate(glyph):
+                for x, cell in enumerate(row):
+                    if cell == '1' and pos + x < width:
+                        im.putpixel((pos + x, y), 1)
+            pos += 18
+        static[1] = _pack(im)
+    else:
+        width = max(15, cfg['bowls'] * 17 + (17 if cfg['fish'] else 0))
+        regions.append((16, 14, width, 12))
+        im = Image.new('1', (width, 12), 0)
+        bowl, fish = _sym_bowl(), _sym_fish()
+        pos = 0
+        for _ in range(cfg['bowls']):
+            im.paste(bowl, (pos, 0))
+            pos += 17
+        if cfg['fish']:
+            im.paste(fish, (pos + 2, 0))
+        static[1] = _pack(im)
+    # ---- right widgets, right-aligned with a uniform gap ----
+    specs = []
+    for wid in cfg['right']:
+        iw, ih, tw, th, kind = STATUS_WIDGETS[wid]
+        specs.append({'id': wid, 'kind': kind, 'iw': iw, 'ih': ih, 'tw': tw, 'th': th,
+                      'total': iw + (3 + tw if tw else 0)})
+    x = STATUS_RIGHT_EDGE
+    for spec in reversed(specs):
+        x -= spec['total']
+        spec['x'] = x
+        x -= STATUS_GAP
+    for spec in specs:
+        iy = 20 - spec['ih'] // 2
+        icon_slot = len(regions)
+        regions.append((spec['x'], iy, spec['iw'], spec['ih']))
+        text_slot = 0
+        if spec['tw']:
+            ty = 20 - spec['th'] // 2
+            text_slot = len(regions)
+            regions.append((spec['x'] + spec['iw'] + 3, ty, spec['tw'], spec['th']))
+        widgets.append({'kind': spec['kind'], 'icon': icon_slot, 'text': text_slot})
+        if spec['kind'] == 3:                      # typing speed: static icon only
+            icon = _sym_speed()
+            im = Image.new('1', (spec['iw'], spec['ih']), 0)
+            im.paste(icon, ((spec['iw'] - icon.width) // 2, (spec['ih'] - icon.height) // 2))
+            static[icon_slot] = _pack(im)
+        elif spec['kind'] in (4, 5):               # report rate / debounce
+            icon = _sym_rate() if spec['kind'] == 4 else _sym_debounce()
+            im = Image.new('1', (spec['iw'], spec['ih']), 0)
+            im.paste(icon, ((spec['iw'] - icon.width) // 2, (spec['ih'] - icon.height) // 2))
+            static[icon_slot] = _pack(im)
+            tim = Image.new('1', (spec['tw'], spec['th']), 0)
+            label = cfg['values']['rate'] if spec['kind'] == 4 else cfg['values']['debounce']
+            used = _paste_text(tim, label, 0, 0, font)
+            tim = tim.crop((0, 0, max(1, min(spec['tw'], used - 1)), spec['th']))
+            pad = Image.new('1', (spec['tw'], spec['th']), 0)
+            pad.paste(tim, ((spec['tw'] - tim.width) // 2, 0))
+            static[text_slot] = _pack(pad)
+    total = sum((w * h + 7) // 8 for _, _, w, h in regions)
+    return {'cfg': cfg, 'regions': regions, 'widgets': widgets,
+            'static': static, 'total': total}
+
 def headers(keys,theme,out):
  out.mkdir(parents=True,exist_ok=True);font=load(ROOT/'profiles/font.json')
  chars=[chr(c) for c in range(32,97)]+list('{|}~')
@@ -96,19 +341,42 @@ def headers(keys,theme,out):
  rows+=[' {'+','.join(str(int(r,2)) for r in glyph)+'},' for glyph in grids]
  rows+=['};','static unsigned glyph_index(unsigned c){if(c>=97&&c<=122)c-=32;if(c>=128&&c<144)return 69+c-128;if(c>=32&&c<=126)return c-32-(c>=123?26:0);return 31;}']
  (out/'cache_font.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
- rows=['/* SPDX-License-Identifier: MIT; generated from profiles. */','#define UI_IDLE_MS 0u','#define UI_USB_RAW 1','#define UI_RF_RAW 0','typedef struct {u16 x,y,fg,bg,offset,bytes;u8 w,h;} UiRegion;','static const UiRegion ui_geo[]={']
+ rows=['/* SPDX-License-Identifier: MIT; generated from profiles. */','#define UI_IDLE_MS 0u','#define UI_USB_RAW 1','#define UI_RF_RAW 0',
+         'typedef struct {u16 x,y,fg,bg,offset,bytes;u8 w,h;} UiRegion;','static const UiRegion ui_geo[]={']
+ layout=status_layout(theme)
  offset=0
- for i,(x,y,w,h) in enumerate(regions()):
+ for i,(x,y,w,h) in enumerate(layout['regions']):
   size=(w*h+7)//8;bg=theme['panel'] if i==0 else theme['background']
   rows.append(' {'+','.join(map(str,[x,y,rgb565(theme['ink']),rgb565(bg),offset,size,w,h]))+'},');offset+=size
+ rows+=['};','#define STATUS_REGION_COUNT '+str(len(layout['regions']))+'u',
+        '#define STATUS_MASK_BYTES '+str(layout['total'])+'u',
+        '#define STATUS_LEFT_KIND '+str({'time':0,'text':1,'bowl':1}[layout['cfg']['kind']])+'u',
+        'typedef struct {u8 kind,icon,text;} StatusWidget;','static const StatusWidget status_right[]={']
+ for w in layout['widgets']:
+  rows.append(' {'+','.join(map(str,[w['kind'],w['icon'],w['text']]))+'},')
+ if not layout['widgets']:
+  rows.append(' {0,1,0},')
+ rows+=['};']
+ blob=bytearray();offs=[]
+ for i in range(len(layout['regions'])):
+  if i in layout['static']:
+   offs.append(len(blob));blob+=layout['static'][i]
+  else:
+   offs.append(0xffff)
+ rows+=['static const u16 status_static_off[]={']
+ rows.append(' '+','.join(str(o) for o in offs)+',')
+ rows+=['};','static const u8 status_static_data[]={']
+ if not blob:
+  blob=bytearray([0])
+ rows.append(' '+','.join(str(b) for b in blob)+',')
  rows+=['};','typedef struct {u16 key;u8 w,h;u16 rows[11];} BigGlyph;','static const BigGlyph big_glyphs[]={']
  for g in keys['glyphs']:
   rows.append(' {'+','.join(map(str,[g['key'],len(g['rows'][0]),len(g['rows'])]))+',{'+','.join(str(int(r,2)) for r in g['rows'])+'}},')
  rows+=['};','static const u32 connection_icons[3][20]={']+[' {'+','.join(map(str,r))+'},' for r in ICONS]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u16 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
- if offset!=MASK_TOTAL:raise ValueError('Unexpected mask allocation')
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
+ return layout
 def base_frame(theme,phase=0):
  im=Image.new('RGB',(320,172),theme['background']);d=ImageDraw.Draw(im)
  if STUDIO:
@@ -148,34 +416,69 @@ def base_frame(theme,phase=0):
     for xx,cell in enumerate(row):
      if cell=='1':d.point((73+i*6+xx,151+yy),fill=theme['ink'])
  return im
+def _unpack(blob,w,h):
+    im=Image.new('1',(w,h),0);i=0
+    for y in range(h):
+        for x in range(w):
+            byte=blob[i>>3];bit=7-(i&7);i+=1
+            if byte&(1<<bit):im.putpixel((x,y),1)
+    return im
+
 def preview_frame(theme,keys,key=227):
- im=base_frame(theme);d=ImageDraw.Draw(im);font=load(ROOT/'profiles/font.json')['ascii']
- def text(value,x,y,scale):
-  for i,c in enumerate(value):
-   for yy,row in enumerate(font[c]):
-    for xx,cell in enumerate(row):
-     if cell=='1':d.rectangle((x+(i*6+xx)*scale,y+yy*scale,x+(i*6+xx+1)*scale-1,y+(yy+1)*scale-1),fill=theme['ink'])
- text('12:34:56',16,13,2);text('84%',287,17,1)
- bx,by=regions()[3][0],regions()[3][1]
- d.rectangle((bx,by,bx+19,by+9),outline=theme['ink']);d.rectangle((bx+2,by+2,bx+15,by+7),fill=theme['ink'])
- d.rectangle((bx+20,by+3,bx+21,by+7),fill=theme['ink'])
- ix,iy=regions()[2][0],regions()[2][1]
- for yy,row in enumerate(ICONS[0]):
-  for xx in range(24):
-   if row&(1<<(23-xx)):d.point((ix+xx,iy+yy),fill=theme['ink'])
- cx,cy=regions()[5][0],regions()[5][1]
- for yy in range(9):
-  for xx in range(9):
-   if (xx-4)**2+(yy-4)**2<=18:d.point((cx+xx,cy+yy),fill=theme['ink'])
- for yy,row in enumerate(font['A']):
-  for xx,cell in enumerate(row):
-   if cell=='1':d.point((cx+10+xx,cy+1+yy),fill=theme['ink'])
- gx,gy,gw,gh=regions()[0]
- g=next(g for g in keys['glyphs'] if g['key']==key);x=gx+(gw-len(g['rows'][0])*6)//2;y=gy+(gh-len(g['rows'])*6)//2
- for yy,row in enumerate(g['rows']):
-  for xx,cell in enumerate(row):
-   if cell=='1':d.rectangle((x+xx*6,y+yy*6,x+xx*6+5,y+yy*6+5),fill=theme['ink'])
- return im
+    """Software preview: real status-bar layout plus a sample key glyph."""
+    im=base_frame(theme);d=ImageDraw.Draw(im);font=load(ROOT/'profiles/font.json')['ascii']
+    layout=status_layout(theme)
+    def put(mask,rx,ry):
+        for y in range(mask.height):
+            for x in range(mask.width):
+                if mask.getpixel((x,y)):d.point((rx+x,ry+y),fill=theme['ink'])
+    def text_at(value,x,y,scale):
+        for i,c in enumerate(value):
+            for yy,row in enumerate(font[c]):
+                for xx,cell in enumerate(row):
+                    if cell=='1':d.rectangle((x+(i*6+xx)*scale,y+yy*scale,x+(i*6+xx+1)*scale-1,y+(yy+1)*scale-1),fill=theme['ink'])
+    for i,(rx,ry,rw,rh) in enumerate(layout['regions']):
+        if i==0:continue
+        blob=layout['static'].get(i)
+        if blob:put(_unpack(blob,rw,rh),rx,ry)
+    cfg=layout['cfg']
+    if cfg['kind']=='time':
+        rx,ry,rw,rh=layout['regions'][1]
+        text_at('12:34:56',rx,ry,2)
+    for w in layout['widgets']:
+        rx,ry,rw,rh=layout['regions'][w['icon']]
+        if w['kind']==0:
+            mask=Image.new('1',(rw,rh),0)
+            for yy,row in enumerate(ICONS[0]):
+                for xx in range(rw):
+                    if row&(1<<(rw-1-xx)):mask.putpixel((xx,yy),1)
+            put(mask,rx,ry)
+        elif w['kind']==1:
+            mask=Image.new('1',(rw,rh),0);md=ImageDraw.Draw(mask)
+            md.ellipse((0,0,8,8),fill=1)
+            for yy,row in enumerate(font['A']):
+                for xx,cell in enumerate(row):
+                    if cell=='1':mask.putpixel((10+xx,1+yy),1)
+            put(mask,rx,ry)
+        elif w['kind']==2:
+            mask=Image.new('1',(rw,rh),0);md=ImageDraw.Draw(mask)
+            md.rectangle((0,0,rw-3,rh-1),outline=1)
+            md.rectangle((2,2,rw-6,rh-3),fill=1)
+            md.rectangle((rw-2,3,rw-1,rh-4),fill=1)
+            put(mask,rx,ry)
+            tx,ty,tw,th=layout['regions'][w['text']]
+            text_at('84%',tx,ty,1)
+        elif w['kind']==3:
+            tx,ty,tw,th=layout['regions'][w['text']]
+            text_at('3.4',tx,ty,1)
+    gx,gy,gw,gh=layout['regions'][0]
+    g=next((g for g in keys['glyphs'] if g['key']==key),None)
+    if g:
+        x=gx+(gw-len(g['rows'][0])*6)//2;y=gy+(gh-len(g['rows'])*6)//2
+        for yy,row in enumerate(g['rows']):
+            for xx,cell in enumerate(row):
+                if cell=='1':d.rectangle((x+xx*6,y+yy*6,x+xx*6+5,y+yy*6+5),fill=theme['ink'])
+    return im
 
 def save_cache_gif(frames,path,duration=120):
  # Keep the previous surface while the native decoder prepares the next frame.

@@ -73,7 +73,7 @@ def build(a):
  clang=compiler(a)
  if a.target=='ips':
   generate(a.keys,a.theme,out/'assets',out);linker=ROOT/'firmware/ips/linker.ld';sources=[ROOT/'firmware/ips/native_ui.c',ROOT/'firmware/ips/rtc.c']
-  flags=['--target=arm-none-eabi','-mcpu=cortex-m4','-mthumb','-mfloat-abi=soft'];low,high=0x0807ec90,0x08080000
+  flags=['--target=arm-none-eabi','-mcpu=cortex-m4','-mthumb','-mfloat-abi=soft'];low,high=0x0807ec90,0x08088000
  else:
   require(a.isp_lib,'--isp-lib is required for main firmware');meta['isp']=isp_blob(Path(a.isp_lib).resolve(),out,clang)
   (out/'main_addresses.h').write_text('/* SPDX-License-Identifier: MIT; exact hash-selected profile. */\n'+''.join(f'#define {name} 0x{profile[key]:x}\n'for name,key in [('MAIN_IPS_HANDLER','ipsHandler'),('MAIN_RTC_INIT','rtcInit'),('MAIN_RX_BUFFER','rx'),('MAIN_WORKER_A_NEXT','nextA'),('MAIN_WORKER_B_NEXT','nextB')]),encoding='utf8')
@@ -92,8 +92,8 @@ def build(a):
   require(image[at:at+len(old)]==old,'Original instruction mismatch');image[at:at+len(old)]=new;patches.append((at,len(old)))
  if a.target=='ips':
   for addr,old,symbol in [(0x0807ca16,0x0807a600,'start'),(0x0805b5b8,0x080596ac,'ips'),(0x0807a73e,0x0802dca8,'gui'),(0x0807a760,0x0805b244,'image'),(0x0807a764,0x0805b030,'misc'),(0x0805b282,0x0805d6f2,'cached_draw'),(0x0805b462,0x0805ac72,'native_key'),(0x0805b53a,0x0805ae0a,'native_status')]:patch(addr-base,thumb_bl(addr,old),thumb_bl(addr,symbols['rainy_hook_'+symbol]))
-  image.extend(b'\xff'*((-len(image))%512))
-  pid=0x3078;meta.update(theme=a.theme,uiVersion='0.6.3',moduleRam='0x2005f000..0x20060000');meta.setdefault('protocol','L6')
+  require(len(image)+base<=high,'UI image exceeds the audited bank-2 interval');image.extend(b'\xff'*(high-base-len(image)))
+  pid=0x3078;meta.update(theme=a.theme,uiVersion='0.6.3',moduleRam='0x2005f000..0x20060000',requiredFlashKiB=1024,requiredSeries=13,codeStart=low,codeEnd=high,iapEraseEnd=0x080c0000);meta.setdefault('protocol','L6')
  else:
   for addr,old,symbol,rd in [(profile['ipsHook'],profile['ipsHandler'],'rainy_main_rtc_probe',0),(profile['rtcHook'],profile['rtcInit'],'rainy_main_rtc_init',1)]:patch(addr-base,jal(addr,old,rd),jal(addr,symbols[symbol],rd))
   for addr,following,symbol in [(profile['workerA'],profile['nextA'],'rainy_clock_worker_a'),(profile['workerB'],profile['nextB'],'rainy_clock_worker_b')]:patch(addr-0x20000000+4,jal(addr,profile['collector'],1)+jal(addr+4,following,1),far_call(addr,symbols[symbol]))

@@ -242,6 +242,34 @@ function renderBuildInfo() {
   }
   $('gif-link').href = S.gifUrl;
 }
+const SB_RIGHT_LIMIT = 3;
+function readStatusbarForm() {
+  const kind = document.querySelector('input[name="sb-left"]:checked')?.value || 'time';
+  const right = [...document.querySelectorAll('.sb-right:checked')].map(el => el.value);
+  return {
+    left: { type: kind, text: $('#sb-text').value.trim(), bowls: Number($('#sb-bowls').value || 0),
+            fish: $('#sb-fish').checked },
+    right,
+    values: { rate: $('#sb-rate').value.trim() || '--', debounce: $('#sb-debounce').value.trim() || '--' },
+  };
+}
+function writeStatusbarForm(cfg) {
+  cfg = cfg || {};
+  const left = cfg.left || {};
+  for (const el of document.querySelectorAll('input[name="sb-left"]')) el.checked = el.value === (left.type || 'time');
+  $('#sb-text').value = left.text || '';
+  $('#sb-bowls').value = String(left.bowls ?? 3);
+  $('#sb-fish').checked = left.fish !== 0 && left.fish !== false;
+  const chosen = (cfg.right || []).slice(0, SB_RIGHT_LIMIT);
+  for (const el of document.querySelectorAll('.sb-right')) el.checked = chosen.includes(el.value);
+  $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
+  $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
+}
+function statusbarLimit() {
+  const boxes = [...document.querySelectorAll('.sb-right')];
+  const picked = boxes.filter(el => el.checked).length;
+  for (const el of boxes) el.disabled = !el.checked && picked >= SB_RIGHT_LIMIT;
+}
 function renderForm() {
   const c = S.character || DEFAULT_CHAR;
   $('#theme-id').value = S.themeId;
@@ -318,6 +346,7 @@ async function loadState() {
   if (r.status !== 200) { $('status-line').classList.add('bad'); $('status-line').textContent = '无法读取本机配置：' + (r.data || {}).error; return; }
   S = r.data;
   S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
+  writeStatusbarForm(S.statusbar || {});
   setBusy(false); renderForm();
 }
 
@@ -338,6 +367,7 @@ async function upload(file) {
     if (!r.data || !r.data.ok) throw Error((r.data || {}).error || '上传失败');
     const d = r.data;
     S = d.state; S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
+    writeStatusbarForm(S.statusbar || {});
     log(d.gifFrames
       ? (d.sampled
           ? `已导入 ${d.gifFrames} 帧（源 ${d.sourceFrames} 帧，因输出超过 4 MiB 或超过安全上限而自动抽帧）`
@@ -414,6 +444,24 @@ $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };
 $('#drop').ondragleave = () => $('#drop').classList.remove('over');
 $('#drop').ondrop = e => { e.preventDefault(); $('#drop').classList.remove('over'); upload(e.dataTransfer.files[0]); };
+for (const el of document.querySelectorAll('input[name="sb-left"]')) el.onchange = statusbarLimit;
+for (const el of document.querySelectorAll('.sb-right')) el.onchange = statusbarLimit;
+$('#sb-save').onclick = async () => {
+  const cfg = readStatusbarForm();
+  $('#sb-save').disabled = true;
+  try {
+    const r = await api('/api/statusbar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(cfg) });
+    if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
+    S.statusbar = r.data.statusbar;
+    writeStatusbarForm(S.statusbar); statusbarLimit();
+    $('#sb-status').textContent = r.data.log || '已保存';
+    log(r.data.log || '状态栏已保存', 'ok');
+  } catch (e) {
+    $('#sb-status').textContent = e.message;
+    log('状态栏保存失败：' + e.message, 'err');
+  } finally { $('#sb-save').disabled = false; }
+};
 $('#apply').onclick = () => apply(true);
 $('#assets-only').onclick = () => apply(false);
 $('#reset').onclick = async () => { log('已放弃未保存的改动，恢复上次应用/保存的配置'); await loadState(); };

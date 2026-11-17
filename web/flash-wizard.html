@@ -37,7 +37,7 @@
     <p class="muted" id="src-note">内置快照 = 打包时预留、已在你机器上验证通过的那套固件（主控 + 屏幕 + S1 动画），完全离线可用。</p>
     <div class="src-local" id="src-local" hidden>
       <label>主控固件 <code>294,912 B</code><input type="file" id="f-main" accept=".bin,application/octet-stream"></label>
-      <label>屏幕固件 <code>507,904 B</code><input type="file" id="f-ips" accept=".bin,application/octet-stream"></label>
+      <label>屏幕固件 <code>540,672 B</code><input type="file" id="f-ips" accept=".bin,application/octet-stream"></label>
       <label>S1 动画 <code>320×172</code><input type="file" id="f-gif" accept=".gif,image/gif"></label>
       <p class="muted">留空的项目自动回落为内置快照。长度不一致会被预检直接拒绝；自定义固件无法核对官方 0.64 基线，请自行确认来源。</p>
     </div>
@@ -72,7 +72,7 @@
       <button id="s2" disabled>② 烧录主控固件</button><span class="step-state" id="t2">等待</span></li>
     <li id="li3"><div class="step-head"><span class="num">3</span><div><strong>屏幕进入升级模式</strong><small>设备选择器选 <code>36B0:3075</code>；等主控重启后再点</small></div></div>
       <button id="s3" disabled>③ 发送屏幕升级命令</button><span class="step-state" id="t3">等待</span></li>
-    <li id="li4"><div class="step-head"><span class="num">4</span><div><strong>烧录屏幕固件</strong><small>设备选择器选 <code>36B0:3078</code>；自动擦除 → 写入 507,904 B → 全字节回读校验</small></div></div>
+    <li id="li4"><div class="step-head"><span class="num">4</span><div><strong>烧录屏幕固件</strong><small>设备选择器选 <code>36B0:3078</code>；先读芯片容量（需 1024 KiB）→ 自动擦除 → 写入 540,672 B → 全字节回读校验</small></div></div>
       <button id="s4" disabled>④ 烧录屏幕固件（当前主题）</button><span class="step-state" id="t4">等待</span></li>
     <li id="li5"><div class="step-head"><span class="num">5</span><div><strong>上传角色动画（S1）</strong><small>设备选择器选 <code>36B0:3075</code>；只写 S1 素材，不校时。大动画有数千个数据包，可能要几分钟，期间请勿拔线</small></div></div>
       <button id="s5" disabled>⑤ 上传 S1 角色动画</button><span class="step-state" id="t5">等待</span></li>

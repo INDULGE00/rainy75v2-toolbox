@@ -1,0 +1,17 @@
+{
+  "left": {
+    "type": "time",
+    "text": "南柯一梦",
+    "bowls": 3,
+    "fish": 1
+  },
+  "right": [
+    "conn",
+    "caps",
+    "battery"
+  ],
+  "values": {
+    "rate": "--",
+    "debounce": "--"
+  }
+}

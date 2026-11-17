@@ -1,4 +1,7 @@
-/* Rainy75 V2 IPS factory 0x0002 only. Appended code: 0x0807EC90..0x08080000.
+/* Rainy75 V2 IPS factory 0x0002 only. Appended code: 0x0807EC90..0x08088000.
+ * The tail of the factory image (0x0807EC90..0x08080000) is used first; the
+ * second 32 KiB bank holds the configurable status bar. Requires a 1024 KiB
+ * part, so the flashing tool probes F_SIZE before it erases anything.
  * Module state: 0x2005F000..0x20060000, shared with the stock application.
  * The reservation has worked on the tested unit; other revisions are unverified. */
 ENTRY(rainy_hook_start)
@@ -7,7 +10,7 @@ PHDRS {
  state PT_LOAD FLAGS(6);
 }
 MEMORY {
- APPEND(rx) : ORIGIN = 0x0807ec90, LENGTH = 0x1370
+ APPEND(rx) : ORIGIN = 0x0807ec90, LENGTH = 0x9370
  STATE(rwx) : ORIGIN = 0x2005f000, LENGTH = 0x1000
 }
 SECTIONS {

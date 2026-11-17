@@ -48,6 +48,14 @@ export class AppClient{
  }
  async queryMain(f){return (await this.request(15,f,[],a=>a.status===0xd0+f)).value;}
  async queryIps(f){return (await this.request(11,f,[],a=>a.status===0xb0+f)).value;}
+ // Screen images that cross 0x08080000 only work on a 1024 KiB part; read the
+ // chip size in APP mode and refuse before anything is erased.
+ async probeIpsTarget(){
+  if(await this.queryIps(0)!==IPS_CAP)throw Error('请先安装匹配的 L6 屏幕固件，再读取芯片容量');
+  const flashKiB=await this.queryIps(14),series=await this.queryIps(15);
+  if(flashKiB!==1024)throw Error(`屏幕片内 Flash 只有 ${flashKiB} KiB，本版固件需要 1024 KiB，未做任何擦除`);
+  return {flashKiB,series};
+ }
  async status(){
   const mainCap=await this.queryMain(9);if(mainCap!==MAIN_CAP)throw Error('主控不是支持的 V7.1，未进行写入');
   const ipsCap=await this.queryIps(0);if(ipsCap!==IPS_CAP)throw Error('屏幕不是支持的 L6，未进行写入');
@@ -109,6 +117,7 @@ export class FlashClient{
  async ok(p,timeout=5000){const r=await this.io.exchange(p,()=>true,timeout,2);if(r.length<2||r[0]||r[1])throw Error('烧录应答失败：'+r[0]+','+r[1]);}
  async flash(progress=()=>{}){
   const {bytes,base,pid}=this.plan;if(!validDevice(this.io.device,pid,64))throw Error('目标错误，未擦除');
+  if(this.plan.flashKiB&&!this.plan.hardwareChecked)throw Error('请先在 APP 模式读取并核对屏幕芯片容量（需要 1024 KiB），未擦除');
   const erase=new Uint8Array(6);erase[0]=0x81;new DataView(erase.buffer).setUint32(2,base,true);
   progress('擦除',0);
   try{await this.ok(erase,20000);}catch(e){throw Error('擦除阶段：'+e.message+'；设备可能仍在升级模式，未确认擦除结果。');}await this.pause(1200);

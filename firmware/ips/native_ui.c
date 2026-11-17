@@ -6,10 +6,11 @@
 #define LCD_BUSY R(0x20001c6c)
 extern u8 __live_bss_start__,__live_bss_end__;
 static struct {
- u8 masks[1431];
+ u8 masks[STATUS_MASK_BYTES];
  u32 pointer,object,time,key_at,caps_at;
+ u32 keys[8];
  u16 x,y,w,h,key;
- u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers,caps;
+ u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers,caps,key_pos;
 } ui;
 static u32 clock_ms(void){return ((u32(*)(void))0x0803a2bb)();}
 static void zero(u8 *p,unsigned n){while(n--)*p++=0;}
@@ -54,40 +55,67 @@ static void key_mask(void){
  }
  text(0,s,1,9);
 }
-static void status_masks(void){
- unsigned x,y,value,bit,icon;u8 s[4];
- clear(2);clear(3);
- if(ui.known&&ui.mode<5){
-  const UiRegion *ir=&ui_geo[2];
-  icon=ui.mode==UI_USB_RAW?0:ui.mode==UI_RF_RAW?1:2;
-  for(y=0;y<ir->h;y++){u32 row=connection_icons[icon][y];for(x=0;x<ir->w;x++)if(row&(1u<<(ir->w-1-x)))dot(2,x,y);}
- }
- value=ui.known?ui.battery:255;
- for(y=0;y<10;y++)for(x=0;x<22;x++){
-  bit=(x<20&&(x==0||x==19||y==0||y==9))||(x>=20&&y>=3&&y<8);
-  if(x>=2&&x<18&&y>=2&&y<8)bit=value<=100?(x-2)*100u<16u*value:(y>=4&&y<6&&x>=7&&x<13);
-  if(bit)dot(3,x,y);
- }
- if(value>100)text(4,(const u8*)"--",2,1);
- else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(4,s,n,1);}
+/* Copy a pre-rendered (compile-time) bitmap into one mask slot; slots without
+   static data are zeroed so a stale frame never survives. */
+static void blit(unsigned slot){
+ const u8 *src=status_static_data+status_static_off[slot];u8 *dst=ui.masks+ui_geo[slot].offset;unsigned n=ui_geo[slot].bytes;
+ if(status_static_off[slot]==0xffffu){while(n--)*dst++=0;return;}
+ while(n--)*dst++=*src++;
 }
-/* Caps lamp + case letter. Filled disc with 'A' = caps on, hollow ring with
-   'a' = caps off. Positioned by ui_geo[5], left of the connection icon. */
-static void caps_mask(void){
+static void draw_conn(unsigned slot){
+ const UiRegion *ir=&ui_geo[slot];unsigned x,y,icon=ui.mode==UI_USB_RAW?0:ui.mode==UI_RF_RAW?1:2;
+ if(!ui.known||ui.mode>=5)return;
+ for(y=0;y<ir->h;y++){u32 row=connection_icons[icon][y];for(x=0;x<ir->w;x++)if(row&(1u<<(ir->w-1-x)))dot(slot,x,y);}
+}
+static void draw_caps(unsigned slot){
  unsigned x,y;const u16 *g=case_glyphs[ui.caps?0:1];
- clear(5);
  for(y=0;y<9;y++)for(x=0;x<9;x++){
   int dx=(int)x-4,dy=(int)y-4;unsigned d2=(unsigned)(dx*dx+dy*dy);
-  if(ui.caps){if(d2<=18u)dot(5,x,y);}
-  else if(d2<=18u&&d2>=9u)dot(5,x,y);
+  if(ui.caps){if(d2<=18u)dot(slot,x,y);}
+  else if(d2<=18u&&d2>=9u)dot(slot,x,y);
  }
- for(y=0;y<7;y++)for(x=0;x<5;x++)if(g[y]&(16u>>x))dot(5,10+x,y+1);
+ for(y=0;y<7;y++)for(x=0;x<5;x++)if(g[y]&(16u>>x))dot(slot,10+x,y+1);
+}
+static void draw_battery(unsigned icon_slot,unsigned text_slot){
+ unsigned x,y,value=ui.known?ui.battery:255,bit;u8 s[4];
+ const UiRegion *ir=&ui_geo[icon_slot];
+ for(y=0;y<ir->h;y++)for(x=0;x<ir->w;x++){
+  bit=(x<20&&(x==0||x==19||y==0||y==9))||(x>=20&&y>=3&&y<8);
+  if(x>=2&&x<18&&y>=2&&y<8)bit=value<=100?(x-2)*100u<16u*value:(y>=4&&y<6&&x>=7&&x<13);
+  if(bit)dot(icon_slot,x,y);
+ }
+ if(!text_slot)return;
+ if(value>100)text(text_slot,(const u8*)"--",2,1);
+ else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(text_slot,s,n,1);}
+}
+/* Keys typed in the last three seconds, shown as one decimal ("3.4"). */
+static void draw_speed(unsigned text_slot){
+ u32 now=clock_ms();unsigned i,n=0,tenths;u8 s[5];
+ for(i=0;i<8;i++)if(ui.keys[i]&&(u32)(now-ui.keys[i])<3000u)n++;
+ tenths=n*10u/3u;
+ if(tenths>999u)tenths=999u;
+ i=0;
+ if(tenths>=100u){s[i++]=(u8)('0'+tenths/100u);s[i++]=(u8)('0'+(tenths/10u)%10u);}
+ else if(tenths>=10u)s[i++]=(u8)('0'+tenths/10u);
+ s[i++]='.';s[i++]=(u8)('0'+tenths%10u);
+ text(text_slot,s,i,1);
+}
+static void status_build(void){
+ unsigned i;
+ for(i=1;i<STATUS_REGION_COUNT;i++)blit(i);
+ for(i=0;i<sizeof status_right/sizeof status_right[0];i++){
+  const StatusWidget *w=&status_right[i];
+  if(w->kind==0)draw_conn(w->icon);
+  else if(w->kind==1)draw_caps(w->icon);
+  else if(w->kind==2)draw_battery(w->icon,w->text);
+  else if(w->kind==3&&w->text)draw_speed(w->text);
+ }
 }
 static void refresh(void){
  u32 t;u8 s[8];unsigned i,shift;
  if(ui.key_dirty){key_mask();ui.key_dirty=0;ui.dirty=1;}
- if(ui.status_dirty){status_masks();caps_mask();ui.status_dirty=0;ui.dirty=1;}
- t=rtc_value();if(t!=ui.time){
+ if(ui.status_dirty){status_build();ui.status_dirty=0;ui.time=0xfffffffeu;ui.dirty=1;}
+ t=rtc_value();if(STATUS_LEFT_KIND==0&&t!=ui.time){
   ui.time=t;
   if(t==0xffffffffu)text(1,(const u8*)"--:--:--",8,2);
   else{for(i=0;i<8;i++){if(i==2||i==5)s[i]=':';else{shift=i<2?20-i*4:i<5?24-i*4:28-i*4;s[i]=(u8)('0'+((t>>shift)&15u));}}text(1,s,8,2);}
@@ -102,7 +130,7 @@ void rainy_hook_cached_draw(u16 x,u16 y,u16 w,u16 h,const u8 *p){
   if(LCD_BUSY)return;
   if(!ui.active){ui.active=1;ui.key_dirty=ui.status_dirty=1;ui.time=0xfffffffeu;}
   refresh();
-  for(i=0;i<6;i++){
+  for(i=0;i<STATUS_REGION_COUNT;i++){
    r=&ui_geo[i];x0=x>r->x?x:r->x;y0=y>r->y?y:r->y;x1=x+w<r->x+r->w?x+w:r->x+r->w;y1=y+h<r->y+r->h?y+h:r->y+r->h;
    for(py=y0;py<y1;py++)for(px=x0;px<x1;px++){
     bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?r->fg:r->bg;
@@ -126,6 +154,7 @@ void rainy_hook_image(void){
 }
 void rainy_hook_native_key(int key,unsigned raw5,unsigned raw6){
  ui.modifiers=(u8)raw6;
+ if((u16)key){ui.keys[ui.key_pos&7u]=clock_ms();ui.key_pos=(u8)((ui.key_pos+1u)&7u);if(ui.status_dirty==0)ui.status_dirty=1;}
  if((u16)key==57&&(u32)(clock_ms()-ui.caps_at)>40u){ui.caps^=1u;ui.caps_at=clock_ms();ui.status_dirty=1;}
  if((u16)key){ui.key=(u16)key;ui.key_at=clock_ms();ui.key_dirty=1;}
  ((void(*)(int,unsigned,unsigned))0x0805ac73)(key,raw5,raw6);

@@ -425,6 +425,7 @@ def state_payload():
         'limits': LIMITS,
         's1Budget': s1_budget(),
         's1BudgetOptions': S1_BUDGETS,
+        'statusbar': read_json(ROOT / 'profiles' / 'statusbar.json', {}),
         'stockReady': STOCK.exists(),
         'mainStockReady': MAIN_STOCK.exists(),
         'clang': find_clang(),
@@ -570,6 +571,35 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError('请先上传一个 GIF 动画，再提取配色')
                     raw = saved.read_bytes()
                 return self.send_json({'ok': True, 'palettes': extract_palette(raw)})
+            if path == '/api/statusbar':
+                left = data.get('left') or {}
+                kind = left.get('type')
+                if kind not in ('time', 'text', 'bowl'):
+                    raise ValueError('左边只能选：时间 / 自定义文字 / 白米饭和鱼')
+                text = ''.join(str(left.get('text') or ''))[:6]
+                bowls = int(left.get('bowls') or 0)
+                if not 0 <= bowls <= 5:
+                    raise ValueError('米饭碗数只能是 0~5')
+                fish = 1 if left.get('fish') else 0
+                if kind == 'text' and not text:
+                    raise ValueError('选了自定义文字就要填内容（最多 6 字）')
+                if kind == 'bowl' and not (bowls or fish):
+                    raise ValueError('选了米饭鱼就要至少 1 个碗或 1 条鱼')
+                right = [w for w in (data.get('right') or [])
+                         if w in assets.STATUS_WIDGETS and w not in []][:3]
+                values = {k: str((data.get('values') or {}).get(k) or '--')[:4]
+                          for k in ('rate', 'debounce')}
+                cfg = {'left': {'type': kind, 'text': text, 'bowls': bowls, 'fish': fish},
+                       'right': right, 'values': values}
+                write_json(ROOT / 'profiles' / 'statusbar.json', cfg)
+                layout = assets.status_layout(all_themes().get(
+                    (read_json(BUILD_IPS / 'manifest.json', {}) or {}).get('theme') or 'pink')
+                    or next(iter(all_themes().values())))
+                return self.send_json({'ok': True, 'statusbar': cfg,
+                                       'regions': len(layout['regions']),
+                                       'maskBytes': layout['total'],
+                                       'log': '状态栏已保存：左边 %s，右边 %s（掩码 %d B，%d 个区域）。点「应用并重新编译 IPS 固件」后生效。'
+                                              % (kind, ','.join(right) or '无', layout['total'], len(layout['regions']))})
             if path == '/api/convert-s1':
                 url = data.get('image') or ''
                 if not (isinstance(url, str) and url.startswith('data:image/gif')):

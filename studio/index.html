@@ -86,11 +86,45 @@
   </div>
 </section>
 
+<section class="card">
+  <h2>⑤ 状态栏</h2>
+  <p class="hint">左边选一样，右边最多选三样；改完点「保存状态栏」，再点④「应用并重新编译 IPS 固件」写入屏幕。</p>
+  <div class="row-2">
+    <div>
+      <p class="label">左边</p>
+      <label class="radio"><input type="radio" name="sb-left" value="time"> 时间</label>
+      <label class="radio"><input type="radio" name="sb-left" value="text"> 自定义文字</label>
+      <label class="radio"><input type="radio" name="sb-left" value="bowl"> 白米饭和鱼</label>
+      <label class="row"><span>文字内容（最多 6 字）</span><input type="text" id="sb-text" maxlength="6" placeholder="南柯一梦"></label>
+      <label class="row"><span>米饭碗数（0–5）</span><input type="number" id="sb-bowls" min="0" max="5" value="3"></label>
+      <label class="check"><input type="checkbox" id="sb-fish" checked> 末尾加一条鱼</label>
+    </div>
+    <div>
+      <p class="label">右边（最多 3 项，按勾选顺序从左到右）</p>
+      <label class="check"><input type="checkbox" class="sb-right" value="conn"> 连接方式</label>
+      <label class="check"><input type="checkbox" class="sb-right" value="caps"> 大小写</label>
+      <label class="check"><input type="checkbox" class="sb-right" value="battery"> 电量</label>
+      <label class="check"><input type="checkbox" class="sb-right" value="speed"> 打字速率（每秒键数）</label>
+      <label class="check"><input type="checkbox" class="sb-right" value="rate"> 回报率（固定值）</label>
+      <label class="check"><input type="checkbox" class="sb-right" value="debounce"> 防抖（固定值）</label>
+      <div class="row-2">
+        <label class="row"><span>回报率数值</span><input type="text" id="sb-rate" maxlength="4" placeholder="1000"></label>
+        <label class="row"><span>防抖数值</span><input type="text" id="sb-debounce" maxlength="4" placeholder="5"></label>
+      </div>
+      <p class="hint">主控不通过串口推送回报率/防抖，这两项只能显示你填的固定值（留空显示 <code>--</code>）。</p>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="sb-save" class="ghost">保存状态栏</button>
+    <span class="muted" id="sb-status"></span>
+  </div>
+</section>
+
 <section class="card" id="stock-card" hidden>
   <h2>⓪ 导入你自己的原厂固件</h2>
   <p class="hint">本工具<strong>不附带任何 WOB 原厂固件</strong>（版权归原厂，不随本项目开源）。要编译屏幕固件，请从你自己的设备备份或官方烧录工具里取出原厂固件，在这里导入一次即可——文件只留在本机 <code>inputs/</code>，不会上传到任何地方。</p>
   <div class="actions">
-    <label class="file-btn">导入屏幕原厂固件（ips-stock.bin · 507,904 B）
+    <label class="file-btn">导入屏幕原厂固件（ips-stock.bin · 502,925 B 原厂件）
       <input type="file" id="stock-ips" accept=".bin" hidden>
     </label>
     <label class="file-btn ghost">导入主控原厂固件（main-stock.bin · 294,912 B，可选）

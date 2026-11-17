@@ -325,6 +325,9 @@ function connectHint(e, pid, label) {
 
 async function step3(){
  const app=await AppClient.connect();
+ // The screen image crosses into bank 2; verify F_SIZE in APP mode first.
+ const {flashKiB,series}=await app.probeIpsTarget();
+ log(`屏幕芯片：${flashKiB} KiB 片内 Flash / 系列 ${series}（本版固件需要 1024 KiB）`,'ok');
  await app.enterIap('ips');
  log('已在 36B0:3075 发送屏幕升级命令，设备将重新枚举为 36B0:3078');
  setProgress('等待屏幕重新枚举…',0.4);

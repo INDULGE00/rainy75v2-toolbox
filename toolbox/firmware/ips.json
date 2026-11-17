@@ -2,8 +2,8 @@
   "format": "rainy75v2-tft/build-v1",
   "target": "ips",
   "status": "experimental; hardware validation incomplete",
-  "bytes": 507904,
-  "sha256": "bf345c20c51bb3b58e16c6246baef15626f18893fc53c843d757398de3ca2e26",
+  "bytes": 540672,
+  "sha256": "8235b7573c287948285747a4aa4665c38a46ec8ce4de04ff7863edde0d024d0e",
   "stockSha256": "32defab7902e57eb972a577fc6cbf3a7e57bc772d59b99f11038370412b77f41",
   "applicationBase": 16384,
   "iapPid": 12408,
@@ -45,5 +45,10 @@
   "theme": "pink",
   "uiVersion": "0.6.3",
   "moduleRam": "0x2005f000..0x20060000",
+  "requiredFlashKiB": 1024,
+  "requiredSeries": 13,
+  "codeStart": 134737040,
+  "codeEnd": 134774784,
+  "iapEraseEnd": 135004160,
   "protocol": "L6"
 }

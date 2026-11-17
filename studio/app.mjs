@@ -486,6 +486,30 @@ $('#sb-save').onclick = async () => {
     log('状态栏保存失败：' + e.message, 'err');
   } finally { $('#sb-save').disabled = false; }
 };
+$('#sb-icon').onchange = async () => {
+  const file = $('#sb-icon').files && $('#sb-icon').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                             body: JSON.stringify({ image: reader.result }) });
+      if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
+      log('左上角图标已更新：' + r.data.w + '×' + r.data.h + ' 点阵，点「应用并重新编译 IPS 固件」后生效', 'ok');
+      $('#sb-status').textContent = '图标已更新，待编译';
+    } catch (e) { log('图标转换失败：' + e.message, 'err'); }
+  };
+  reader.readAsDataURL(file);
+};
+$('#sb-icon-clear').onclick = async () => {
+  try {
+    const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                           body: JSON.stringify({ clear: true }) });
+    if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
+    log('已恢复默认米饭图标', 'ok');
+    $('#sb-status').textContent = '已恢复默认图标';
+  } catch (e) { log('恢复失败：' + e.message, 'err'); }
+};
 $('#apply').onclick = () => apply(true);
 $('#assets-only').onclick = () => apply(false);
 $('#reset').onclick = async () => { log('已放弃未保存的改动，恢复上次应用/保存的配置'); await loadState(); };

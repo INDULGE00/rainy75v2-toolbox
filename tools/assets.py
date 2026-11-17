@@ -101,10 +101,10 @@ STATUS_BOWLS_MAX = 5
 # width/height of the icon and value boxes, plus the widget kind the firmware
 # switches on: 0 conn, 1 caps, 2 battery, 3 typing speed, 4/5 static values.
 STATUS_WIDGETS = {
-    'conn':     (24, 15, 0, 0, 0),
+    'conn':     (24, 13, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
-    'speed':    (12, 12, 23, 7, 3),
+    'speed':    (11, 11, 23, 7, 3),
     'rate':     (15, 10, 35, 7, 4),
     'debounce': (19, 10, 33, 7, 5),
 }
@@ -122,7 +122,7 @@ def status_config():
     cfg = load(STATUSBAR_FILE) if STATUSBAR_FILE.exists() else {}
     left = cfg.get('left') or {}
     kind = left.get('type', 'time')
-    if kind not in ('time', 'text'):
+    if kind not in ('time', 'text', 'rice'):
         kind = 'time'
     text = ''.join(str(left.get('text') or ''))[:STATUS_TEXT_MAX]
     bowls = max(0, min(STATUS_BOWLS_MAX, int(left.get('bowls') or 0)))
@@ -226,12 +226,12 @@ def _sym_debounce():
 def _sym_speed():
     """Speedometer: ring with tick marks, needle to the upper right."""
     def paint(d):
-        d.ellipse((0, 0, 11, 11), outline=1)
-        for tx, ty in ((6, 2), (9, 5), (8, 9)):
+        d.ellipse((0, 0, 10, 10), outline=1)
+        for tx, ty in ((5, 2), (8, 5), (7, 8)):
             d.point((tx, ty), fill=1)
-        d.line((5, 5, 9, 2), fill=1)
-        d.rectangle((5, 5, 6, 6), fill=1)
-    return _symbol((12, 12), paint)
+        d.line((4, 5, 8, 2), fill=1)
+        d.rectangle((4, 4, 5, 5), fill=1)
+    return _symbol((11, 11), paint)
 
 
 def _sym_bowl():
@@ -251,6 +251,58 @@ def _sym_fish():
         d.polygon([(10, 3), (13, 1), (13, 10), (10, 8)], fill=1)
         d.point((2, 4), fill=1)
     return _symbol((14, 12), paint)
+
+
+# Rice-bowl icon for the left slot: the shape is a dome sitting in a bowl,
+# distilled from the reference photo. It doubles as the "empty" variant after
+# an edge pass, and can be replaced by any image through local/left-icon.png.
+RICE_ART = (
+    '....####....',
+    '..########..',
+    '.##########.',
+    '############',
+    '############',
+    '.##########.',
+    '..########..',
+    '...######...',
+    '..########..',
+)
+
+
+def _outline(im):
+    """Turn a filled 1-bit shape into its 1-pixel border."""
+    w, h = im.size
+    out = Image.new('1', (w, h), 0)
+    for y in range(h):
+        for x in range(w):
+            if not im.getpixel((x, y)):
+                continue
+            edge = x == 0 or y == 0 or x == w - 1 or y == h - 1
+            if not edge:
+                edge = not (im.getpixel((x - 1, y)) and im.getpixel((x + 1, y))
+                            and im.getpixel((x, y - 1)) and im.getpixel((x, y + 1)))
+            if edge:
+                out.putpixel((x, y), 1)
+    return out
+
+
+def left_icon():
+    """Filled rice glyph, optionally replaced by local/left-icon.png."""
+    custom = ROOT / 'local' / 'left-icon.png'
+    if custom.exists():
+        with Image.open(custom) as src:
+            im = src.convert('L')
+        im = im.point(lambda v: 255 if v < 150 else 0)
+        bb = im.getbbox()
+        if bb:
+            im = im.crop(bb)
+            w, h = im.size
+            scale = min(11 / w, 8 / h)
+            im = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.Resampling.NEAREST)
+        box = Image.new('1', (12, 9), 0)
+        box.paste(im.convert('1'), ((12 - im.width) // 2, (9 - im.height) // 2))
+        return box
+    return _art(RICE_ART)
 
 
 def _pack(im):
@@ -298,7 +350,14 @@ def status_layout(theme):
     static = {}
     widgets = []
     # ---- left slot (region 1) ----
-    if cfg['kind'] == 'time':
+    if cfg['kind'] == 'rice':
+        icon = left_icon()
+        gap = 2
+        width = 5 * icon.width + 4 * gap
+        regions.append((16, 14, width, icon.height))
+        rice = {'w': icon.width, 'h': icon.height,
+                'filled': _pack(icon), 'empty': _pack(_outline(icon))}
+    elif cfg['kind'] == 'time':
         regions.append((16, 13, 94, 14))
     elif cfg['kind'] == 'text':
         width = max(16, len(cfg['text']) * 18 - 2)
@@ -331,7 +390,7 @@ def status_layout(theme):
     for wid in cfg['right']:
         iw, ih, tw, th, kind = STATUS_WIDGETS[wid]
         specs.append({'id': wid, 'kind': kind, 'iw': iw, 'ih': ih, 'tw': tw, 'th': th,
-                      'total': iw + (3 + tw if tw else 0)})
+                      'total': iw + ((1 if kind >= 3 else 3) + tw if tw else 0)})
     x = STATUS_RIGHT_EDGE
     for spec in reversed(specs):
         x -= spec['total']
@@ -347,7 +406,10 @@ def status_layout(theme):
         if spec['tw']:
             ty = 20 - spec['th'] // 2
             text_slot = len(regions)
-            regions.append((spec['x'] + spec['iw'] + 3, ty, spec['tw'], spec['th']))
+            # symbol rows sit tighter than the badge rows so each item reads as
+            # one unit instead of two distant parts
+            gap = 1 if spec['kind'] >= 3 else 3
+            regions.append((spec['x'] + spec['iw'] + gap, ty, spec['tw'], spec['th']))
         widgets.append({'kind': spec['kind'], 'icon': icon_slot, 'text': text_slot})
         if spec['kind'] == 3:                      # typing speed: static icon only
             icon = _sym_speed()
@@ -370,7 +432,8 @@ def status_layout(theme):
             static[text_slot] = _pack(pad)
     total = sum((w * h + 7) // 8 for _, _, w, h in regions)
     return {'cfg': cfg, 'regions': regions, 'widgets': widgets,
-            'static': static, 'total': total}
+            'static': static, 'rice': rice if cfg['kind'] == 'rice' else None,
+            'total': total}
 
 def headers(keys,theme,out):
  out.mkdir(parents=True,exist_ok=True);font=load(ROOT/'profiles/font.json')
@@ -395,13 +458,20 @@ def headers(keys,theme,out):
   rows.append(' {'+','.join(map(str,[x,y,offset,size,w,h]))+'},');offset+=size
  rows+=['};','#define STATUS_REGION_COUNT '+str(len(layout['regions']))+'u',
         '#define STATUS_MASK_BYTES '+str(layout['total'])+'u',
-        '#define STATUS_LEFT_KIND '+str(0 if layout['cfg']['kind']=='time' else 1)+'u',
+        '#define STATUS_LEFT_KIND '+str({'time':0,'text':1,'rice':2}[layout['cfg']['kind']])+'u',
         'typedef struct {u8 kind,icon,text;} StatusWidget;','static const StatusWidget status_right[]={']
  for w in layout['widgets']:
   rows.append(' {'+','.join(map(str,[w['kind'],w['icon'],w['text']]))+'},')
  if not layout['widgets']:
   rows.append(' {0,1,0},')
  rows+=['};']
+ rice=layout.get('rice')
+ if rice:
+  rows+=['#define LEFT_ICON_W '+str(rice['w'])+'u','#define LEFT_ICON_H '+str(rice['h'])+'u',
+         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in rice['filled'])+',','};',
+         'static const u8 left_icon_empty[]={',' '+','.join(str(b) for b in rice['empty'])+',','};']
+ else:
+  rows+=['#define LEFT_ICON_W 0u','#define LEFT_ICON_H 0u']
  blob=bytearray();offs=[]
  for i in range(len(layout['regions'])):
   if i in layout['static']:
@@ -421,10 +491,10 @@ def headers(keys,theme,out):
  packed_icons=[]
  for icon in ICONS:
   blob=[]
-  for row in icon[:15]:
+  for row in icon[:13]:
    blob += [(row>>16)&255,(row>>8)&255,row&255]
   packed_icons.append(blob)
- rows+=['};','static const u8 connection_icons[3][45]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
+ rows+=['};','static const u8 connection_icons[3][39]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
  rows+=['static const u8 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
@@ -494,6 +564,14 @@ def preview_frame(theme,keys,key=227):
         blob=layout['static'].get(i)
         if blob:put(_unpack(blob,rw,rh),rx,ry)
     cfg=layout['cfg']
+    if cfg['kind']=='rice':
+        rx,ry,rw,rh=layout['regions'][1]
+        icon=left_icon();empty=_outline(icon);filled=(78+19)//20
+        for i in range(5):
+            src=icon if i<filled else empty
+            for y in range(src.height):
+                for x in range(src.width):
+                    if src.getpixel((x,y)):d.point((rx+i*(icon.width+2)+x,ry+y),fill=theme['ink'])
     if cfg['kind']=='time':
         rx,ry,rw,rh=layout['regions'][1]
         text_at('12:34:56',rx,ry,2)

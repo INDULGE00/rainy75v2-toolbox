@@ -571,11 +571,43 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError('请先上传一个 GIF 动画，再提取配色')
                     raw = saved.read_bytes()
                 return self.send_json({'ok': True, 'palettes': extract_palette(raw)})
+            if path == '/api/left-icon':
+                target = LOCAL / 'left-icon.png'
+                if data.get('clear'):
+                    if target.exists():
+                        target.unlink()
+                    return self.send_json({'ok': True, 'cleared': True,
+                                           'log': '已恢复默认米饭图标'})
+                url = data.get('image') or ''
+                if not (isinstance(url, str) and url.startswith('data:image/')):
+                    raise ValueError('请选择一张图片（PNG / JPG / WebP）')
+                raw = base64.b64decode(url.split(',', 1)[1], validate=True)
+                if len(raw) > 8 * 1024 * 1024:
+                    raise ValueError('图片超过 8 MiB，请先缩小')
+                with Image.open(io.BytesIO(raw)) as src:
+                    grey = src.convert('L')
+                # threshold, crop to the artwork, fit into a 12x9 cell grid
+                mask = grey.point(lambda v: 255 if v < 150 else 0)
+                bb = mask.getbbox()
+                if not bb:
+                    raise ValueError('这张图识别不出图案（太亮或太空）')
+                mask = mask.crop(bb)
+                scale = min(11 / mask.width, 8 / mask.height, 1.0)
+                if scale < 1.0:
+                    mask = mask.resize((max(1, round(mask.width * scale)),
+                                        max(1, round(mask.height * scale))),
+                                       Image.Resampling.NEAREST)
+                box = Image.new('1', (12, 9), 0)
+                box.paste(mask.convert('1'), ((12 - mask.width) // 2, (9 - mask.height) // 2))
+                LOCAL.mkdir(parents=True, exist_ok=True)
+                box.save(target)
+                return self.send_json({'ok': True, 'w': 12, 'h': 9,
+                                       'log': '已把图片转成 12×9 单色点阵'})
             if path == '/api/statusbar':
                 left = data.get('left') or {}
                 kind = left.get('type')
-                if kind not in ('time', 'text'):
-                    raise ValueError('左边只能选：时间 / 自定义文字')
+                if kind not in ('time', 'text', 'rice'):
+                    raise ValueError('左边只能选：时间 / 自定义文字 / 米饭图标')
                 text = ''.join(str(left.get('text') or ''))[:6]
                 bowls, fish = 0, 0
                 if kind == 'text' and not text:

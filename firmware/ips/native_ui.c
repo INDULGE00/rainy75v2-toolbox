@@ -57,7 +57,7 @@ static void key_mask(void){
  else if((i>=58&&i<=69)||(i>=104&&i<=115)){
   i=i>=104?i-91:i-57;s[0]='F';if(i>=10){s[1]=(u8)('0'+i/10);s[2]=(u8)('0'+i%10);text(0,s,3,5);}else{s[1]=(u8)('0'+i);text(0,s,2,6);}return;
  }else{
-  switch(i){case 41:s[0]=140;break;case 43:s[0]=130;break;case 57:s[0]=141;break;case 73:s[0]=143;break;case 76:s[0]=142;break;case 224:case 228:s[0]=132;break;case 225:case 229:s[0]=131;break;case 226:case 230:s[0]=133;break;case 227:case 231:s[0]=139;break;default:s[0]='?';break;}
+  switch(i){case 43:s[0]=130;break;case 57:s[0]=141;break;case 73:s[0]=143;break;case 76:s[0]=142;break;case 225:case 229:s[0]=131;break;case 227:case 231:s[0]=139;break;default:s[0]='?';break;}
  }
  text(0,s,1,9);
 }
@@ -105,9 +105,23 @@ static void draw_speed(unsigned text_slot){
  s[j++]=(u8)('0'+v%10u);
  text(text_slot,s,j,1);
 }
+/* Left slot as a five-bowl battery gauge: ceil(percent/20) bowls are filled. */
+static void draw_rice(void){
+ unsigned i,x,y,n;const u8 *src;
+ if(!ui.known||ui.battery>100u)return;
+ n=(ui.battery+19u)/20u;if(n>5u)n=5u;
+ for(i=0;i<5u;i++){
+  src=i<n?left_icon_filled:left_icon_empty;
+  for(y=0;y<LEFT_ICON_H;y++)for(x=0;x<LEFT_ICON_W;x++){
+   unsigned bit=y*LEFT_ICON_W+x;
+   if(src[bit>>3]&(128u>>(bit&7)))dot(1,i*(LEFT_ICON_W+2u)+x,y);
+  }
+ }
+}
 static void status_build(void){
  unsigned i;
  for(i=1;i<STATUS_REGION_COUNT;i++)blit(i);
+ if(STATUS_LEFT_KIND==2)draw_rice();
  for(i=0;i<sizeof status_right/sizeof status_right[0];i++){
   const StatusWidget *w=&status_right[i];
   if(w->kind==0)draw_conn(w->icon);
@@ -179,7 +193,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1304;break; /* UI build tag: 1.3.4 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1305;break; /* UI build tag: 1.3.5 */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

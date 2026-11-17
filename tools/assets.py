@@ -105,8 +105,8 @@ STATUS_WIDGETS = {
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
     'speed':    (15, 15, 23, 7, 3),
-    'rate':     (16, 14, 31, 7, 4),
-    'debounce': (17, 14, 31, 7, 5),
+    'rate':     (16, 14, 35, 7, 4),
+    'debounce': (17, 14, 29, 7, 5),
 }
 STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
 STATUS_RIGHT_MAX = 3
@@ -178,21 +178,23 @@ def _symbol(size, painter):
 
 
 def _sym_rate():
-    """Two lowercase n's with square shoulders (reference report-rate glyph)."""
+    """Two lowercase n's sharing a baseline that runs past both sides."""
     def paint(d):
-        for i in range(2):
-            ox = i * 8
-            d.line((ox, 4, ox, 12), fill=1, width=2)
-            d.line((ox, 4, ox + 4, 4), fill=1, width=2)
-            d.line((ox + 4, 4, ox + 4, 12), fill=1, width=2)
+        for ox in (1, 6, 9, 14):
+            d.rectangle((ox, 3, ox + 1, 12), fill=1)
+        d.rectangle((1, 3, 7, 4), fill=1)
+        d.rectangle((9, 3, 15, 4), fill=1)
+        d.rectangle((0, 12, 15, 12), fill=1)
     return _symbol((16, 14), paint)
 
 
 def _sym_debounce():
-    """Sharp ECG spike (reference debounce glyph)."""
+    """Symmetric heartbeat: flat baseline, one solid peak."""
     def paint(d):
-        d.line([(0, 9), (3, 9), (5, 2), (7, 13), (9, 5), (11, 9), (17, 9)], fill=1, width=2)
-    return _symbol((17, 14), paint)
+        d.line([(0, 10), (5, 10)], fill=1, width=2)
+        d.polygon([(5, 10), (8, 2), (11, 10)], fill=1)
+        d.line([(11, 10), (17, 10)], fill=1, width=2)
+    return _symbol((18, 14), paint)
 
 
 def _sym_speed():
@@ -492,7 +494,7 @@ def preview_frame(theme,keys,key=227):
             text_at('84%',tx,ty,1)
         elif w['kind']==3:
             tx,ty,tw,th=layout['regions'][w['text']]
-            text_at('3.4',tx,ty,1)
+            text_at('246',tx,ty,1)
     gx,gy,gw,gh=layout['regions'][0]
     g=next((g for g in keys['glyphs'] if g['key']==key),None)
     if g:

@@ -7,7 +7,25 @@ export class HidIO{
  constructor(device,length){this.device=device;this.length=length;this.pending=false;}
  static async choose(pid,length){
   if(!globalThis.navigator?.hid)throw Error('请用支持 WebHID 的桌面 Chrome / Edge，并通过 localhost 或 HTTPS 打开');
-  const list=await navigator.hid.requestDevice({filters:[{vendorId:VID,productId:pid,usagePage:0xff60,usage:0x61}]});const d=list.find(d=>validDevice(d,pid,length));if(!d)throw Error('设备型号或 HID 描述符不匹配');
+  const filters=[{vendorId:VID,productId:pid,usagePage:0xff60,usage:0x61}];
+  let d;
+  // requestDevice() needs a fresh user gesture. Inside a multi-step action (or a
+  // retry right after another step) that gesture is gone, so fall back to the
+  // device the user already granted in this page session instead of throwing
+  // "Must be handling a user gesture" and leaving the flow half done.
+  try{
+   const list=await navigator.hid.requestDevice({filters});
+   d=list.find(x=>validDevice(x,pid,length));
+  }catch(e){
+   const granted=await navigator.hid.getDevices().catch(()=>[]);
+   d=granted.find(x=>validDevice(x,pid,length));
+   if(!d)throw e;
+  }
+  if(!d){
+   const granted=await navigator.hid.getDevices().catch(()=>[]);
+   d=granted.find(x=>validDevice(x,pid,length));
+  }
+  if(!d)throw Error('设备型号或 HID 描述符不匹配');
   if(!d.opened)await d.open();return new HidIO(d,length);
  }
  async send(bytes){if(bytes.length>this.length)throw Error('Report too large');const p=new Uint8Array(this.length);p.set(bytes);await this.device.sendReport(0,p);}

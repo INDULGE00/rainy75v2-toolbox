@@ -161,19 +161,24 @@ function renderLoopInfo() {
 }
 function renderLimits() {
   const L = S.limits || {}, box = $('limits');
+  const screen = (L.screen || [320, 172]).join('×');
+  const budget = S.s1Budget || L.outputBytes;
+  const rows = [
+    ['屏幕上真正的大小', `整个屏幕 ${screen}；角色活动区约 112×112，其余是键帽卡片，角色超出会被裁掉`],
+    ['上传源文件', `≤ ${fmt(L.uploadBytes)}；任意分辨率都行，程序会等比缩放（最多保留 ${L.maxFrames} 帧）`],
+    ['写进屏幕的体积', `当前上限 ${fmt(budget)}${L.outputBytes && budget > L.outputBytes ? '（协议上限 ' + fmt(L.outputBytes) + '，以协议为准）' : ''}；超了会自动抽帧，抽不下去就被屏幕拒绝`],
+    ['输出格式', `严格 ${screen}、每帧完整不透明、disposal=1（否则切回按键页会黑屏）`],
+    ['S1 剩余空间', `屏幕外置 Flash 还要放原厂素材；被拒时选更小的上限，或在 WOB 官方驱动里删掉不用的图片`],
+  ];
   box.replaceChildren();
   const title = document.createElement('strong');
-  title.textContent = 'GIF 规格限制（S1 槽位 / 屏幕 320×172）';
+  title.textContent = 'GIF 规格与体积（S1 槽位）';
   box.append(title);
-  const lines = [
-    `上传源文件 ≤ ${fmt(L.uploadBytes)}；任意分辨率、任意帧数都会自动等比适配（安全上限 ${L.maxFrames} 帧）`,
-    `输出严格 ${(L.screen || [320, 172]).join('×')}、每帧完整不透明、disposal=1`,
-    `输出总计 ≤ ${fmt(L.outputBytes)}（协议与设备 Flash 上限），当前 ${fmt(S.gifBytes)}`,
-    `默认保留 GIF 全部帧；仅当输出超过 ${fmt(L.outputBytes)} 才自动均匀抽帧，不再按固定帧数抽`,
-  ];
-  for (const text of lines) {
+  for (const [k, v] of rows) {
     const div = document.createElement('div');
-    div.textContent = text;
+    const b = document.createElement('b');
+    b.textContent = k + '：';
+    div.append(b, document.createTextNode(v));
     box.append(div);
   }
 }
@@ -243,9 +248,37 @@ function renderBuildInfo() {
   $('gif-link').href = S.gifUrl;
 }
 const SB_RIGHT_LIMIT = 3;
+const SB_LABELS = { conn: '连接方式', caps: '大小写', battery: '电量',
+  speed: '打字速率（每分钟按键数）', rate: '回报率', debounce: '防抖' };
+let sbRight = [];
+function renderSbRight() {
+  const list = $('#sb-right-list'), pool = $('#sb-right-pool');
+  if (!list || !pool) return;
+  list.innerHTML = sbRight.length ? sbRight.map((id, i) => `
+    <span class="sb-chip">
+      <b>${i + 1}</b>${SB_LABELS[id] || id}
+      <button data-sb-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button data-sb-down="${i}" ${i === sbRight.length - 1 ? 'disabled' : ''}>↓</button>
+      <button data-sb-del="${i}">✕</button>
+    </span>`).join('') : '<span class="muted">还没有选任何项目</span>';
+  const left = Object.keys(SB_LABELS).filter(id => !sbRight.includes(id));
+  pool.innerHTML = left.map(id => `<button data-sb-add="${id}" ${sbRight.length >= SB_RIGHT_LIMIT ? 'disabled' : ''}>+ ${SB_LABELS[id]}</button>`).join('');
+  for (const b of list.querySelectorAll('[data-sb-up]')) b.onclick = () => {
+    const i = Number(b.dataset.sbUp); [sbRight[i - 1], sbRight[i]] = [sbRight[i], sbRight[i - 1]]; renderSbRight();
+  };
+  for (const b of list.querySelectorAll('[data-sb-down]')) b.onclick = () => {
+    const i = Number(b.dataset.sbDown); [sbRight[i + 1], sbRight[i]] = [sbRight[i], sbRight[i + 1]]; renderSbRight();
+  };
+  for (const b of list.querySelectorAll('[data-sb-del]')) b.onclick = () => {
+    sbRight.splice(Number(b.dataset.sbDel), 1); renderSbRight();
+  };
+  for (const b of pool.querySelectorAll('[data-sb-add]')) b.onclick = () => {
+    sbRight.push(b.dataset.sbAdd); renderSbRight();
+  };
+}
 function readStatusbarForm() {
   const kind = document.querySelector('input[name="sb-left"]:checked')?.value || 'time';
-  const right = [...document.querySelectorAll('.sb-right:checked')].map(el => el.value);
+  const right = sbRight.slice();
   return {
     left: { type: kind, text: $('#sb-text').value.trim() },
     right,
@@ -257,15 +290,10 @@ function writeStatusbarForm(cfg) {
   const left = cfg.left || {};
   for (const el of document.querySelectorAll('input[name="sb-left"]')) el.checked = el.value === (left.type || 'time');
   $('#sb-text').value = left.text || '';
-  const chosen = (cfg.right || []).slice(0, SB_RIGHT_LIMIT);
-  for (const el of document.querySelectorAll('.sb-right')) el.checked = chosen.includes(el.value);
+  sbRight = (cfg.right || []).filter(id => SB_LABELS[id]).slice(0, SB_RIGHT_LIMIT);
+  renderSbRight();
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
-}
-function statusbarLimit() {
-  const boxes = [...document.querySelectorAll('.sb-right')];
-  const picked = boxes.filter(el => el.checked).length;
-  for (const el of boxes) el.disabled = !el.checked && picked >= SB_RIGHT_LIMIT;
 }
 function renderForm() {
   const c = S.character || DEFAULT_CHAR;
@@ -441,8 +469,7 @@ $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };
 $('#drop').ondragleave = () => $('#drop').classList.remove('over');
 $('#drop').ondrop = e => { e.preventDefault(); $('#drop').classList.remove('over'); upload(e.dataTransfer.files[0]); };
-for (const el of document.querySelectorAll('input[name="sb-left"]')) el.onchange = statusbarLimit;
-for (const el of document.querySelectorAll('.sb-right')) el.onchange = statusbarLimit;
+for (const el of document.querySelectorAll('input[name="sb-left"]')) el.onchange = () => {};
 $('#sb-save').onclick = async () => {
   const cfg = readStatusbarForm();
   $('#sb-save').disabled = true;
@@ -451,7 +478,7 @@ $('#sb-save').onclick = async () => {
                                             body: JSON.stringify(cfg) });
     if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
     S.statusbar = r.data.statusbar;
-    writeStatusbarForm(S.statusbar); statusbarLimit();
+    writeStatusbarForm(S.statusbar);
     $('#sb-status').textContent = r.data.log || '已保存';
     log(r.data.log || '状态栏已保存', 'ok');
   } catch (e) {

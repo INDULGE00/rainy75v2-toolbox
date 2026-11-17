@@ -94,15 +94,16 @@ static void draw_battery(unsigned icon_slot,unsigned text_slot){
  if(value>100)text(text_slot,(const u8*)"--",2,1);
  else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(text_slot,s,n,1);}
 }
-/* Keys typed per second over the last three seconds. */
+/* Keys typed in the last ten seconds, scaled to keys per minute (CPM). */
 static void draw_speed(unsigned text_slot){
- u32 now=clock_ms();unsigned i,n=0,v;u8 s[3];
- for(i=0;i<8;i++)if(ui.keys[i]&&(u32)(now-ui.keys[i])<3000u)n++;
- v=n/3u;if(v>99u)v=99u;
- i=0;
- if(v>=10u)s[i++]=(u8)('0'+v/10u);
- s[i++]=(u8)('0'+v%10u);
- text(text_slot,s,i,1);
+ u32 now=clock_ms();unsigned j,n=0,v;u8 s[3];
+ for(j=0;j<8;j++)if(ui.keys[j]&&(u32)(now-ui.keys[j])<10000u)n++;
+ v=n*6u;if(v>999u)v=999u;
+ j=0;
+ if(v>=100u)s[j++]=(u8)('0'+v/100u);
+ if(v>=10u)s[j++]=(u8)('0'+(v/10u)%10u);
+ s[j++]=(u8)('0'+v%10u);
+ text(text_slot,s,j,1);
 }
 static void status_build(void){
  unsigned i;
@@ -178,7 +179,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1302;break; /* UI build tag: 1.3.2 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1303;break; /* UI build tag: 1.3.3 */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

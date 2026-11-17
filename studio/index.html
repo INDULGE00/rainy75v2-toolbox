@@ -18,28 +18,42 @@
 <div class="grid">
   <section class="card">
     <h2>① 角色形象</h2>
+    <div class="limits-box" id="limits">正在读取规格限制…</div>
+    <p class="label">1 · 选择素材</p>
     <div id="drop" class="drop">
       <strong>拖拽图片到这里，或点此选择</strong>
-      <span>支持 JPG / PNG / GIF。上传 GIF 动画会逐帧沿用原动作与形象（推荐）；白底静态图会自动拆三视图并去白底，单张透明图作为一个视角。</span>
+      <span>GIF 动画会逐帧沿用原动作（推荐）；静态白底图会自动拆三视图并去白底；单张透明图作为一个视角。</span>
       <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
     </div>
-    <div id="limits" class="limits">正在读取规格限制…</div>
     <div id="fit-info" class="fit-info">尚未上传 GIF · 上传后会自动等比适配到屏幕角色区</div>
+
+    <div class="sep"></div>
+    <p class="label">2 · 大小与体积（这是屏幕上真正占的空间）</p>
     <label class="row"><span>动画体积上限</span><select id="s1-budget">
-      <option value="262144">256 KB · 屏幕空间很紧张时选这个</option>
+      <option value="262144">256 KB · 空间很紧张时选这个</option>
       <option value="524288" selected>512 KB · 默认，大多数屏幕放得下</option>
       <option value="1048576">1 MB · 空间够大时可用</option>
       <option value="2097152">2 MB · 需要屏幕有足够剩余空间</option>
     </select></label>
-    <p class="hint">屏幕的外置 Flash 还要放别的东西，动画超过它的剩余空间就会被拒绝（刷机时报 <strong>BEGIN 状态 4</strong>）。这里设多大，程序就会自动抽帧把 S1 压到该体积内；如果仍然被拒，往下调一档，或先在 WOB 官方驱动里删掉不用的图片/动画腾地方。</p>
+    <p class="hint">这个上限就是最终写进屏幕 S1 的文件大小：程序会自动抽帧把动画压到上限以内。超限时屏幕会拒绝写入（刷机报 <strong>BEGIN 状态 4</strong>），程序会自动降档重试（150 ms 慢放 → 256 KB → 精简版）。</p>
+    <label class="row"><span>每帧时长 <output id="duration-out"></output></span><input type="range" id="duration" min="60" max="600" step="10"></label>
+    <p class="hint">每帧时长越短越顺滑、但同样体积下能放的帧数越少；60 ms 以下容易让屏幕解码忙不过来处理串口。</p>
+    <div id="loop-info" class="fit-info"></div>
+
+    <div class="sep"></div>
+    <p class="label">3 · 位置与外观</p>
+    <label class="row"><span>角色大小 <output id="scale-out"></output></span><input type="range" id="scale" min="0.5" max="1.5" step="0.02"></label>
+    <label class="row"><span>上下位置 <output id="offset-out"></output></span><input type="range" id="offsetY" min="-24" max="24" step="1"></label>
+    <label class="row"><span>脚下阴影</span><input type="checkbox" id="shadow" checked></label>
     <label class="row"><span>去除白底</span><input type="checkbox" id="remove-bg" checked></label>
-    <p class="hint">默认开启：只去掉与画面边缘相连的中性亮白，角色自带的米白 / 奶油色、白色衣物会保留。关闭则完全保留 GIF 原始像素（含白底）。切换后会自动重新生成 S1 素材。</p>
+    <p class="hint">默认开启：只去掉与画面边缘相连的中性亮白/纯色底，角色自带的白色衣物会保留。</p>
+
+    <div class="sep"></div>
+    <p class="label">4 · 其它</p>
     <label class="row"><span>自动拆分三视图</span><input type="checkbox" id="split" checked></label>
     <label class="row"><span>角色名称</span><input type="text" id="char-name" maxlength="40" placeholder="deepseek 大肥鱼"></label>
-    <div id="sprites" class="sprites"></div>
-    <div class="sep"></div>
     <label class="row"><span>动作风格</span><select id="motion-style">
-      <option value="lively">温和待机动作（呼吸 / 摇摆 / 小跳，不画表情，28 帧）</option>
+      <option value="lively">温和待机动作（呼吸 / 摇摆 / 小跳，28 帧）</option>
       <option value="turn">仅三视角轮转（原版，8 帧）</option>
       <option value="idle">仅正面静态待机（8 帧）</option>
     </select></label>
@@ -49,11 +63,7 @@
       <option value="two">正面 ↔ 侧面（8 帧）</option>
       <option value="flip">正面 → 背面（8 帧）</option>
     </select></label>
-    <label class="row"><span>角色大小 <output id="scale-out"></output></span><input type="range" id="scale" min="0.5" max="1.5" step="0.02"></label>
-    <label class="row"><span>上下位置 <output id="offset-out"></output></span><input type="range" id="offsetY" min="-24" max="24" step="1"></label>
-    <label class="row"><span>每帧时长 <output id="duration-out"></output></span><input type="range" id="duration" min="60" max="600" step="10"></label>
-    <div id="loop-info" class="fit-info"></div>
-    <label class="row"><span>脚下阴影</span><input type="checkbox" id="shadow" checked></label>
+    <div id="sprites" class="sprites"></div>
   </section>
 
   <section class="card">
@@ -97,13 +107,10 @@
       <label class="row"><span>文字内容（最多 6 字）</span><input type="text" id="sb-text" maxlength="6" placeholder="南柯一梦"></label>
     </div>
     <div>
-      <p class="label">右边（最多 3 项，按勾选顺序从左到右）</p>
-      <label class="check"><input type="checkbox" class="sb-right" value="conn"> 连接方式</label>
-      <label class="check"><input type="checkbox" class="sb-right" value="caps"> 大小写</label>
-      <label class="check"><input type="checkbox" class="sb-right" value="battery"> 电量</label>
-      <label class="check"><input type="checkbox" class="sb-right" value="speed"> 打字速率（每秒键数）</label>
-      <label class="check"><input type="checkbox" class="sb-right" value="rate"> 回报率（固定值）</label>
-      <label class="check"><input type="checkbox" class="sb-right" value="debounce"> 防抖（固定值）</label>
+      <p class="label">右边（最多 3 项，列表顺序 = 屏幕从左到右）</p>
+      <div id="sb-right-list" class="sb-list"></div>
+      <div id="sb-right-pool" class="sb-pool"></div>
+      <p class="hint">点下面的项目加入，用 ↑ ↓ 调整左右顺序，✕ 移除。</p>
       <div class="row-2">
         <label class="row"><span>回报率数值</span><input type="text" id="sb-rate" maxlength="4" placeholder="1000 → 显示 1000 Hz"></label>
         <label class="row"><span>防抖数值</span><input type="text" id="sb-debounce" maxlength="4" placeholder="5 → 显示 5 ms"></label>

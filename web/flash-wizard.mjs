@@ -354,12 +354,15 @@ async function step4(){
  // Prove which firmware is actually running: a stale image is the usual reason
  // "刷完没变化" — the build tag lives in the patched UI, not in the banner.
  try{
-  const check=await AppClient.connect();
+  // Reuses the already-granted device; guarded so a reboot or a missing
+  // permission can never stall the remaining quick-action steps.
+  const check=await Promise.race([AppClient.connect(),
+    new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x1302
-     ? `已确认屏幕正在运行 UI 1.3.2（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1302：可能刷的是旧固件`, tag===0x1302?'ok':'warn');
+   log(tag===0x1303
+     ? `已确认屏幕正在运行 UI 1.3.3（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1303：可能刷的是旧固件`, tag===0x1303?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }

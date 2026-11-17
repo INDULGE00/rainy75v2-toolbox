@@ -249,7 +249,8 @@ function renderBuildInfo() {
 }
 const SB_RIGHT_LIMIT = 3;
 const SB_LABELS = { conn: '连接方式', caps: '大小写', battery: '电量',
-  speed: '打字速率（每分钟按键数）', rate: '回报率', debounce: '防抖' };
+  speed: '打字速率（每分钟按键数）', keys: '按键累计次数',
+  rate: '回报率', debounce: '防抖' };
 let sbRight = [];
 function renderSbRight() {
   const list = $('#sb-right-list'), pool = $('#sb-right-pool');
@@ -296,20 +297,20 @@ function writeStatusbarForm(cfg) {
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
 const RICE_DEFAULT = [
-  '000001111111100000',
-  '000111111111111000',
-  '001111111111111100',
-  '001111111111111100',
-  '111111111111111111',
-  '111111111111111111',
-  '011000000000000110',
-  '011000000000000110',
-  '001100000000001100',
-  '001100000000001100',
-  '000110000000011000',
-  '000110000000011000',
-  '000011111111110000',
-  '000011111111110000',
+  '000000001111111100000000',
+  '000011111111111111110000',
+  '001111111111111111111100',
+  '001111111111111111111100',
+  '111111111111111111111111',
+  '111111111111111111111111',
+  '011100000000000000011100',
+  '011100000000000000011100',
+  '001100000000000000001100',
+  '001100000000000000001100',
+  '000110000000000000011000',
+  '000110000000000000011000',
+  '000001111111111111100000',
+  '000001111111111111100000',
 ];
 let riceRows = RICE_DEFAULT.slice();
 let ricePainting = false;
@@ -335,16 +336,10 @@ function riceRowsHex() {
   for (let i = 0; i < bits.length; i += 4) hex += parseInt(bits.slice(i, i + 4).padEnd(4, '0'), 2).toString(16);
   return `${riceRows[0].length}x${riceRows.length}:${hex}`;
 }
-let iconPreviewTimer = null;
-function scheduleIconPreview() {
-  clearTimeout(iconPreviewTimer);
-  iconPreviewTimer = setTimeout(() => {
-    const img = $('live-preview');
-    const base = (S && S.previewUrl) || '/api/preview?t=pink';
-    const url = base.split('&i=')[0] + '&i=' + encodeURIComponent(riceRowsHex()) + '&k=' + Date.now();
-    img.src = url;
-  }, 180);
-}
+// One preview path for everything: the icon currently painted in the editor
+// is sent with each preview so the POST render never overwrites it with the
+// last saved icon.
+function scheduleIconPreview() { schedulePreview(); }
 function paintCell(x, y) {
   const row = riceRows[y];
   const next = row[x] === '1' ? '0' : '1';
@@ -354,19 +349,18 @@ function paintCell(x, y) {
   scheduleIconPreview();
 }
 document.addEventListener('mouseup', () => { ricePainting = false; });
-$('#sb-icon-clear').onclick = () => {
+$('#sb-icon-clear').onclick = async () => {
+  // Update the editor and the live preview immediately; the server clear only
+  // removes the saved override so a future reload sees the default too.
   riceRows = RICE_DEFAULT.slice();
   renderRiceEditor();
   scheduleIconPreview();
-  log('已把米饭图标恢复成默认点阵（保存状态栏后生效）');
-};
-$('#sb-icon-clear').onclick = async () => {
   try {
     const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                            body: JSON.stringify({ clear: true }) });
     if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
     log('已恢复默认米饭图标', 'ok');
-    $('#sb-status').textContent = '已恢复默认图标';
+    $('#sb-status').textContent = '已恢复默认图标（点「保存状态栏」后写入固件）';
   } catch (e) { log('恢复失败：' + e.message, 'err'); }
 };
 
@@ -423,11 +417,12 @@ function renderForm() {
 }
 
 async function refreshPreview() {
-  if (!S || !S.sprites.length) return;
+  if (!S) return;
   try {
     const r = await api('/api/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ colors: collectColors(), character: collectCharacter() }),
+      body: JSON.stringify({ colors: collectColors(), character: collectCharacter(),
+                             icon: riceRowsHex() }),
     });
     if (r.status !== 200) {
       const e = r.data || {}; log('预览生成失败：' + (e.error || r.status), 'err'); return;

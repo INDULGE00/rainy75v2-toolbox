@@ -7,7 +7,7 @@
 extern u8 __live_bss_start__,__live_bss_end__;
 static struct {
  u8 masks[STATUS_MASK_BYTES];
- u32 pointer,object,time,key_at,caps_at;
+ u32 pointer,object,time,key_at,caps_at,key_total;
  u32 keys[8];
  u16 x,y,w,h,key;
  u8 active,suspended,has_surface,dirty,key_dirty,status_dirty,known,battery,charge,mode,modifiers,caps,key_pos;
@@ -109,6 +109,16 @@ static void draw_speed(unsigned text_slot){
  s[j++]=(u8)('0'+v%10u);
  text(text_slot,s,j,1);
 }
+/* Cumulative key presses since boot, capped at 9999 (4 digits). */
+static void draw_keycount(unsigned slot){
+ u32 v=ui.key_total;unsigned j=0;u8 s[4];
+ if(v>9999u)v=9999u;
+ if(v>=1000u)s[j++]=(u8)('0'+v/1000u);
+ if(v>=100u)s[j++]=(u8)('0'+(v/100u)%10u);
+ if(v>=10u)s[j++]=(u8)('0'+(v/10u)%10u);
+ s[j++]=(u8)('0'+v%10u);
+ text(slot,s,j,1);
+}
 /* Left slot as a five-bowl battery gauge: ceil(percent/20) bowls are filled. */
 static void draw_rice(void){
  unsigned i,x,y,n;
@@ -129,6 +139,7 @@ static void status_build(void){
   else if(w->kind==1)draw_caps(w->icon);
   else if(w->kind==2)draw_battery(w->icon,w->text);
   else if(w->kind==3&&w->text)draw_speed(w->text);
+  else if(w->kind==6&&w->text)draw_keycount(w->text);
  }
 }
 static void refresh(void){
@@ -174,7 +185,7 @@ void rainy_hook_image(void){
 }
 void rainy_hook_native_key(int key,unsigned raw5,unsigned raw6){
  ui.modifiers=(u8)raw6;
- if((u16)key){ui.keys[ui.key_pos&7u]=clock_ms();ui.key_pos=(u8)((ui.key_pos+1u)&7u);if(ui.status_dirty==0)ui.status_dirty=1;}
+ if((u16)key){ui.keys[ui.key_pos&7u]=clock_ms();ui.key_pos=(u8)((ui.key_pos+1u)&7u);ui.key_total++;if(ui.status_dirty==0)ui.status_dirty=1;}
  if((u16)key==57&&(u32)(clock_ms()-ui.caps_at)>40u){ui.caps^=1u;ui.caps_at=clock_ms();ui.status_dirty=1;}
  if((u16)key){ui.key=(u16)key;ui.key_at=clock_ms();ui.key_dirty=1;}
  ((void(*)(int,unsigned,unsigned))0x0805ac73)(key,raw5,raw6);
@@ -194,7 +205,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1312;break; /* UI build tag: 1.3.12 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1313;break; /* UI build tag: 1.3.13 */case 18:v=ui.key_total;break; /* cumulative key presses */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

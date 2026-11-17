@@ -77,8 +77,8 @@ export class AppClient{
  async status(){
   const mainCap=await this.queryMain(9);if(mainCap!==MAIN_CAP)throw Error('主控不是支持的 V7.1，未进行写入');
   const ipsCap=await this.queryIps(0);if(ipsCap!==IPS_CAP)throw Error('屏幕不是支持的 L6，未进行写入');
-  const valid=await this.queryMain(8),hi=await this.queryMain(7),lo=await this.queryMain(6),state=await this.queryIps(4),a=await this.queryIps(5),b=await this.queryIps(6),battery=await this.queryIps(2),mode=await this.queryIps(3),key=await this.queryIps(1);
-  return {mainCap,ipsCap,valid:Boolean(valid),mainSeconds:(hi*65536+lo)>>>0,screenState:state,screenTime:decodeTime((b*65536+a)>>>0),battery:battery===65535?null:battery&255,mode,key};
+  const valid=await this.queryMain(8),hi=await this.queryMain(7),lo=await this.queryMain(6),state=await this.queryIps(4),a=await this.queryIps(5),b=await this.queryIps(6),battery=await this.queryIps(2),mode=await this.queryIps(3),key=await this.queryIps(1),keyTotal=await this.queryIps(18);
+  return {mainCap,ipsCap,valid:Boolean(valid),mainSeconds:(hi*65536+lo)>>>0,screenState:state,screenTime:decodeTime((b*65536+a)>>>0),battery:battery===65535?null:battery&255,mode,key,keyTotal};
  }
  async calibrate({timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone,rate=32000}={}){
   if(!Number.isInteger(rate)||rate<30000||rate>40000)throw Error('无效的计时频率');

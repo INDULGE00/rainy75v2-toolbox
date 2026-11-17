@@ -495,16 +495,46 @@ def state_payload():
     }
 
 
-def render_preview(colors, cfg):
-    sprites = charmod.load_sprites(cfg)
+def preview_icon(spec):
+    """Decode a '<w>x<h>:<hex>' pixel spec sent by the live pixel editor."""
+    if not spec:
+        return None
+    try:
+        w, rest = spec.split('x', 1)
+        h, hexbits = rest.split(':', 1)
+        w, h = int(w), int(h)
+        if not (1 <= w <= 64 and 1 <= h <= 32):
+            return None
+        bits = ''.join(f'{int(c, 16):04b}' for c in hexbits)[:w * h]
+        rows = [bits[y * w:(y + 1) * w].replace('0', '.').replace('1', '#')
+                for y in range(h)]
+        return assets._art(rows)
+    except Exception:
+        return None
+
+
+def render_preview(colors, cfg, icon=None):
+    # An empty cfg means "no custom character loaded yet" (the GET icon-preview
+    # path). Render the stock background/robot and only override the rice icon.
+    try:
+        sprites = charmod.load_sprites(cfg)
+    except Exception:
+        sprites = None
     keys = assets.load(KEYS_FILE)
     with LOCK:
         old_cfg, old_sprites = assets._CHAR_CFG, assets._CHAR_SPRITES
-        assets._CHAR_CFG, assets._CHAR_SPRITES = cfg, sprites
+        old_icon = assets._LEFT_ICON_OVERRIDE
+        if sprites is not None:
+            assets._CHAR_CFG, assets._CHAR_SPRITES = cfg, sprites
+        else:
+            assets._CHAR_CFG, assets._CHAR_SPRITES = None, ()
+        if icon is not None:
+            assets._LEFT_ICON_OVERRIDE = icon
         try:
             return assets.preview_frame(colors, keys)
         finally:
             assets._CHAR_CFG, assets._CHAR_SPRITES = old_cfg, old_sprites
+            assets._LEFT_ICON_OVERRIDE = old_icon
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -570,25 +600,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if spec and theme:
                     # live preview while the user paints the pixel editor: the
                     # rows come straight from the browser, no save required
-                    try:
-                        w, rest = spec.split('x', 1)
-                        h, hexbits = rest.split(':', 1)
-                        w, h = int(w), int(h)
-                        bits = ''.join(f'{int(c, 16):04b}' for c in hexbits)[:w * h]
-                        rows = [bits[y * w:(y + 1) * w].replace('0', '.').replace('1', '#')
-                                for y in range(h)]
-                        icon = assets._art(rows)
-                    except Exception:
-                        icon = None
+                    icon = preview_icon(spec)
                     if icon is not None:
                         keys = assets.load(KEYS_FILE)
-                        with LOCK:
-                            old = assets._LEFT_ICON_OVERRIDE
-                            assets._LEFT_ICON_OVERRIDE = icon
-                            try:
-                                img = assets.preview_frame(theme, keys)
-                            finally:
-                                assets._LEFT_ICON_OVERRIDE = old
+                        img = render_preview(theme, {}, icon)
                         buf = io.BytesIO()
                         img.save(buf, 'PNG')
                         return self.send_bytes(buf.getvalue())
@@ -857,8 +872,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({'ok': True, 'views': len(sprites), 'state': state_payload()})
             if path == '/api/preview':
                 colors = validate_colors(data.get('colors'))
-                cfg = validate_character(data.get('character'))
-                return self.send_bytes(png_bytes(render_preview(colors, cfg)))
+                raw_cfg = data.get('character')
+                # Preview must also work before any character is uploaded (e.g.
+                # while editing the rice icon on a fresh install).
+                cfg = validate_character(raw_cfg) if raw_cfg else {}
+                icon = preview_icon(data.get('icon') or '')
+                return self.send_bytes(png_bytes(render_preview(colors, cfg, icon)))
             if path == '/api/apply':
                 theme_id = str(data.get('themeId') or '')
                 if not re.fullmatch(r'[a-z0-9_-]{1,24}', theme_id):

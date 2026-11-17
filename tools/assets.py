@@ -160,6 +160,7 @@ STATUS_WIDGETS = {
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
     'speed':    (10, 10, 23, 7, 3),
+    'keys':     (12, 10, 18, 7, 6),
     'rate':     (15, 10, 35, 7, 4),
     'debounce': (19, 10, 33, 7, 5),
 }
@@ -291,6 +292,25 @@ def _sym_speed():
     return _symbol((10, 10), paint)
 
 
+# 12x10 keyboard glyph: a 2px-stroke keycap grid (three keys + space bar).
+KEYS_ART = (
+    '.##########.',
+    '.#..#..#..#.',
+    '.##########.',
+    '.#..#..#..#.',
+    '.##########.',
+    '............',
+    '.##########.',
+    '.#........#.',
+    '.##########.',
+    '............',
+)
+
+
+def _sym_keys():
+    return _art(KEYS_ART)
+
+
 def _sym_bowl():
     def paint(d):
         d.pieslice((2, 0, 12, 8), 180, 360, fill=1)
@@ -314,20 +334,20 @@ def _sym_fish():
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
 RICE_ART = (
-    '.....########.....',
-    '...############...',
-    '..##############..',
-    '..##############..',
-    '##################',
-    '##################',
-    '.##............##.',
-    '.##............##.',
-    '..##..........##..',
-    '..##..........##..',
-    '...##........##...',
-    '...##........##...',
-    '....##########....',
-    '....##########....',
+    '........########........',
+    '....################....',
+    '..####################..',
+    '..####################..',
+    '########################',
+    '########################',
+    '.###................###.',
+    '.###................###.',
+    '..##................##..',
+    '..##................##..',
+    '...##..............##...',
+    '...##..............##...',
+    '.....###############....',
+    '.....###############....',
 )
 
 
@@ -477,6 +497,10 @@ def status_layout(theme):
             icon = _sym_speed()
             im = Image.new('1', (spec['iw'], spec['ih']), 0)
             im.paste(icon, ((spec['iw'] - icon.width) // 2, (spec['ih'] - icon.height) // 2))
+            static[icon_slot] = _pack(im)
+        elif spec['kind'] == 6:                    # cumulative key presses
+            im = Image.new('1', (spec['iw'], spec['ih']), 0)
+            im.paste(_sym_keys(), ((spec['iw'] - 12) // 2, (spec['ih'] - 10) // 2))
             static[icon_slot] = _pack(im)
         elif spec['kind'] in (4, 5):               # report rate / debounce
             icon = _sym_rate() if spec['kind'] == 4 else _sym_debounce()
@@ -658,6 +682,9 @@ def preview_frame(theme,keys,key=227):
         elif w['kind']==3:
             tx,ty,tw,th=layout['regions'][w['text']]
             text_at('246',tx,ty,1)
+        elif w['kind']==6:
+            tx,ty,tw,th=layout['regions'][w['text']]
+            text_at('1234',tx,ty,1)
     gx,gy,gw,gh=layout['regions'][0]
     g=next((g for g in keys['glyphs'] if g['key']==key),None)
     if g:

@@ -67,3 +67,20 @@ class ScreenshotDetectionTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class KeyCountWidgetTest(unittest.TestCase):
+    def test_key_widget_icon_is_12x10_and_kind6(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import STATUS_WIDGETS, _sym_keys
+        self.assertEqual(STATUS_WIDGETS['keys'], (12, 10, 18, 7, 6))
+        self.assertEqual(_sym_keys().size, (12, 10))
+
+    def test_live_icon_spec_roundtrip(self):
+        from studio import preview_icon
+        icon = preview_icon('3x2:f00f')
+        self.assertEqual(icon.size, (3, 2))
+        self.assertEqual([icon.getpixel((x, y)) for y in range(2) for x in range(3)],
+                         [1, 1, 1, 1, 0, 0])
+        self.assertIsNone(preview_icon('bad-spec'))

@@ -47,6 +47,7 @@ $('connect').onclick=async()=>{
   const bcdHi=await read(c,'屏幕 BCD 时间高 16 位',()=>c.queryIps(6));
   const battery=await read(c,'电量原始值',()=>c.queryIps(2));
   const mode=await read(c,'连接模式 (1=USB / 0=2.4G / 2..4=蓝牙)',()=>c.queryIps(3));
+  await read(c,'按键累计次数 (开机起)',()=>c.queryIps(18));
   await read(c,'大写锁定 (1=大写 A / 0=小写 a，屏幕本地计数)',()=>c.queryIps(16));
   if(bcdLo!==null&&bcdHi!==null){
    const t=decodeTime((bcdHi*65536+bcdLo)>>>0);

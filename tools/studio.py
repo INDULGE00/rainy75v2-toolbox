@@ -501,8 +501,36 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json({'error': 'GIF 不存在'}, 404)
                 return self.send_bytes(p.read_bytes(), 'image/gif')
             if path == '/api/preview':
-                t = (parse_qs(urlparse(self.path).query).get('t') or [state_payload()['themeId']])[0]
+                query = parse_qs(urlparse(self.path).query)
+                t = (query.get('t') or [state_payload()['themeId']])[0]
                 t = re.sub(r'[^a-z0-9_-]', '', t)
+                spec = (query.get('i') or [''])[0]
+                theme = all_themes().get(t)
+                if spec and theme:
+                    # live preview while the user paints the pixel editor: the
+                    # rows come straight from the browser, no save required
+                    try:
+                        w, rest = spec.split('x', 1)
+                        h, hexbits = rest.split(':', 1)
+                        w, h = int(w), int(h)
+                        bits = ''.join(f'{int(c, 16):04b}' for c in hexbits)[:w * h]
+                        rows = [bits[y * w:(y + 1) * w].replace('0', '.').replace('1', '#')
+                                for y in range(h)]
+                        icon = assets._art(rows)
+                    except Exception:
+                        icon = None
+                    if icon is not None:
+                        keys = assets.load(KEYS_FILE)
+                        with LOCK:
+                            old = assets._LEFT_ICON_OVERRIDE
+                            assets._LEFT_ICON_OVERRIDE = icon
+                            try:
+                                img = assets.preview_frame(theme, keys)
+                            finally:
+                                assets._LEFT_ICON_OVERRIDE = old
+                        buf = io.BytesIO()
+                        img.save(buf, 'PNG')
+                        return self.send_bytes(buf.getvalue())
                 p = ASSETS_DIR / f'preview-{t}.png'
                 if not p.exists():
                     return self.send_json({'error': '预览图不存在'}, 404)

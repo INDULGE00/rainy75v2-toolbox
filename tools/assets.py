@@ -164,6 +164,8 @@ STATUS_WIDGETS = {
 STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
 STATUS_RIGHT_MAX = 3
 STATUS_GAP = 9
+STATUS_BAND_Y = 7
+STATUS_BAND_H = 14
 STATUS_RIGHT_EDGE = 310
 CJK_FONTS = ('C:/Windows/Fonts/msyh.ttc', 'C:/Windows/Fonts/simhei.ttf',
              'C:/Windows/Fonts/simsun.ttc', 'C:/Windows/Fonts/Deng.ttf',
@@ -310,22 +312,20 @@ def _sym_fish():
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
 RICE_ART = (
-    '......######......',
     '.....########.....',
-    '...###..##..###...',
-    '...###..##..###...',
+    '...############...',
     '..##############..',
-    '.################.',
-    '.################.',
+    '..##############..',
     '##################',
     '##################',
-    '.##.............##',
-    '..#.............#.',
-    '..##...........##.',
-    '...#...........#..',
-    '...##.........##..',
-    '....###########...',
-    '....###########...',
+    '.##............##.',
+    '.##............##.',
+    '..##..........##..',
+    '..##..........##..',
+    '...##........##...',
+    '...##........##...',
+    '....##########....',
+    '....##########....',
 )
 
 
@@ -346,8 +346,13 @@ def _outline(im):
     return out
 
 
+_LEFT_ICON_OVERRIDE = None
+
+
 def left_icon():
     """Rice glyph: the pixel-editor drawing in local/left-icon.json if present."""
+    if _LEFT_ICON_OVERRIDE is not None:
+        return _LEFT_ICON_OVERRIDE
     custom = ROOT / 'local' / 'left-icon.json'
     if custom.exists():
         try:
@@ -409,13 +414,13 @@ def status_layout(theme):
         icon = left_icon()
         gap = 2
         width = 5 * icon.width + 4 * gap
-        regions.append((16, 12, width, icon.height))
+        regions.append((16, STATUS_BAND_Y, width, icon.height))
         rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon)}
     elif cfg['kind'] == 'time':
-        regions.append((16, 13, 94, 14))
+        regions.append((16, 10, 94, 14))
     elif cfg['kind'] == 'text':
         width = max(16, len(cfg['text']) * 18 - 2)
-        res = (16, 11, width, 16)
+        res = (16, 8, width, 16)
         regions.append(res)
         im = Image.new('1', (width, 16), 0)
         pos = 0
@@ -453,12 +458,13 @@ def status_layout(theme):
     for spec in specs:
         # Symbol widgets sit on the same baseline as their value text so the row
         # reads as one line; round badges stay optically centred.
-        iy = (24 - spec['ih']) if spec['kind'] >= 3 else (20 - spec['ih'] // 2)
+        iy = ((STATUS_BAND_Y + STATUS_BAND_H - 1 - spec['ih']) if spec['kind'] >= 3
+              else STATUS_BAND_Y + (STATUS_BAND_H - spec['ih']) // 2)
         icon_slot = len(regions)
         regions.append((spec['x'], iy, spec['iw'], spec['ih']))
         text_slot = 0
         if spec['tw']:
-            ty = 20 - spec['th'] // 2
+            ty = STATUS_BAND_Y + (STATUS_BAND_H - spec['th']) // 2
             text_slot = len(regions)
             # symbol rows sit tighter than the badge rows so each item reads as
             # one unit instead of two distant parts

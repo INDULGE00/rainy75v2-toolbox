@@ -1,15 +1,1 @@
-{
-  "left": {
-    "type": "rice",
-    "text": "南柯一梦"
-  },
-  "right": [
-    "conn",
-    "caps",
-    "battery"
-  ],
-  "values": {
-    "rate": "1000",
-    "debounce": "5"
-  }
-}
+{"left": {"type": "rice"}, "right": ["conn", "caps", "battery"]}

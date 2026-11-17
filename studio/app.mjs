@@ -295,9 +295,22 @@ function writeStatusbarForm(cfg) {
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
-const RICE_DEFAULT = ['000011110000', '001100001100', '010000000010', '111111111111',
-  '111111111111', '011111111110', '001111111100', '000111111000',
-  '000011110000', '000001100000'];
+const RICE_DEFAULT = [
+  '000001111111100000',
+  '000111111111111000',
+  '001111111111111100',
+  '001111111111111100',
+  '111111111111111111',
+  '111111111111111111',
+  '011000000000000110',
+  '011000000000000110',
+  '001100000000001100',
+  '001100000000001100',
+  '000110000000011000',
+  '000110000000011000',
+  '000011111111110000',
+  '000011111111110000',
+];
 let riceRows = RICE_DEFAULT.slice();
 let ricePainting = false;
 function renderRiceEditor() {
@@ -316,17 +329,35 @@ function renderRiceEditor() {
     });
   });
 }
+function riceRowsHex() {
+  const bits = riceRows.join('');
+  let hex = '';
+  for (let i = 0; i < bits.length; i += 4) hex += parseInt(bits.slice(i, i + 4).padEnd(4, '0'), 2).toString(16);
+  return `${riceRows[0].length}x${riceRows.length}:${hex}`;
+}
+let iconPreviewTimer = null;
+function scheduleIconPreview() {
+  clearTimeout(iconPreviewTimer);
+  iconPreviewTimer = setTimeout(() => {
+    const img = $('live-preview');
+    const base = (S && S.previewUrl) || '/api/preview?t=pink';
+    const url = base.split('&i=')[0] + '&i=' + encodeURIComponent(riceRowsHex()) + '&k=' + Date.now();
+    img.src = url;
+  }, 180);
+}
 function paintCell(x, y) {
   const row = riceRows[y];
   const next = row[x] === '1' ? '0' : '1';
   riceRows[y] = row.slice(0, x) + next + row.slice(x + 1);
   const el = $(`#sb-icon-editor .px[data-x="${x}"][data-y="${y}"]`);
   if (el) el.className = next === '1' ? 'px on' : 'px';
+  scheduleIconPreview();
 }
 document.addEventListener('mouseup', () => { ricePainting = false; });
 $('#sb-icon-clear').onclick = () => {
   riceRows = RICE_DEFAULT.slice();
   renderRiceEditor();
+  scheduleIconPreview();
   log('已把米饭图标恢复成默认点阵（保存状态栏后生效）');
 };
 $('#sb-icon-clear').onclick = async () => {

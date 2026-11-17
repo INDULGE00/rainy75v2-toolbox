@@ -74,7 +74,7 @@ static void draw_conn(unsigned slot){
  for(y=0;y<ir->h;y++){u32 row=connection_icons[icon][y];for(x=0;x<ir->w;x++)if(row&(1u<<(ir->w-1-x)))dot(slot,x,y);}
 }
 static void draw_caps(unsigned slot){
- unsigned x,y;const u16 *g=case_glyphs[ui.caps?0:1];
+ unsigned x,y;const u8 *g=case_glyphs[ui.caps?0:1];
  for(y=0;y<9;y++)for(x=0;x<9;x++){
   int dx=(int)x-4,dy=(int)y-4;unsigned d2=(unsigned)(dx*dx+dy*dy);
   if(ui.caps){if(d2<=18u)dot(slot,x,y);}
@@ -179,7 +179,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1303;break; /* UI build tag: 1.3.3 */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1304;break; /* UI build tag: 1.3.4 */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

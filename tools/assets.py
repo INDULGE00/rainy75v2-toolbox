@@ -101,12 +101,12 @@ STATUS_BOWLS_MAX = 5
 # width/height of the icon and value boxes, plus the widget kind the firmware
 # switches on: 0 conn, 1 caps, 2 battery, 3 typing speed, 4/5 static values.
 STATUS_WIDGETS = {
-    'conn':     (24, 19, 0, 0, 0),
+    'conn':     (24, 15, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
-    'speed':    (15, 15, 23, 7, 3),
-    'rate':     (16, 14, 35, 7, 4),
-    'debounce': (17, 14, 29, 7, 5),
+    'speed':    (12, 12, 23, 7, 3),
+    'rate':     (15, 10, 35, 7, 4),
+    'debounce': (19, 10, 33, 7, 5),
 }
 STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
 STATUS_RIGHT_MAX = 3
@@ -177,35 +177,61 @@ def _symbol(size, painter):
     return im
 
 
+# 1-bit art copied from the reference grid the user drew (1 cell = 1 px).
+RATE_ART = (
+    '..#####.#####..',
+    '..#####.#####..',
+    '..##.##.##.##..',
+    '..##.##.##.##..',
+    '..##.##.##.##..',
+    '..##.##.##.##..',
+    '..##.##.##.##..',
+    '..##.##.##.##..',
+    '####.#####.####',
+    '####.#####.####',
+)
+DEBOUNCE_ART = (
+    '......#............',
+    '.....###...........',
+    '....#####..........',
+    '...###.###.....#...',
+    '..###...##....#####',
+    '#####....##...###..',
+    '...#.....###.###...',
+    '..........#####....',
+    '...........###.....',
+    '............#......',
+)
+
+
+def _art(rows):
+    im = Image.new('1', (len(rows[0]), len(rows)), 0)
+    for y, row in enumerate(rows):
+        for x, cell in enumerate(row):
+            if cell == '#':
+                im.putpixel((x, y), 1)
+    return im
+
+
 def _sym_rate():
-    """Two lowercase n's sharing a baseline that runs past both sides."""
-    def paint(d):
-        for ox in (1, 6, 9, 14):
-            d.rectangle((ox, 3, ox + 1, 12), fill=1)
-        d.rectangle((1, 3, 7, 4), fill=1)
-        d.rectangle((9, 3, 15, 4), fill=1)
-        d.rectangle((0, 12, 15, 12), fill=1)
-    return _symbol((16, 14), paint)
+    """Two n's on a shared baseline, exactly as drawn in the reference grid."""
+    return _art(RATE_ART)
 
 
 def _sym_debounce():
-    """Symmetric heartbeat: flat baseline, one solid peak."""
-    def paint(d):
-        d.line([(0, 10), (5, 10)], fill=1, width=2)
-        d.polygon([(5, 10), (8, 2), (11, 10)], fill=1)
-        d.line([(11, 10), (17, 10)], fill=1, width=2)
-    return _symbol((18, 14), paint)
+    """Heartbeat waveform from the same reference grid."""
+    return _art(DEBOUNCE_ART)
 
 
 def _sym_speed():
     """Speedometer: ring with tick marks, needle to the upper right."""
     def paint(d):
-        d.ellipse((1, 1, 14, 14), outline=1)
-        for tx, ty in ((8, 3), (12, 6), (10, 11)):
+        d.ellipse((0, 0, 11, 11), outline=1)
+        for tx, ty in ((6, 2), (9, 5), (8, 9)):
             d.point((tx, ty), fill=1)
-        d.line((7, 7, 11, 4), fill=1, width=2)
-        d.rectangle((6, 6, 8, 8), fill=1)
-    return _symbol((15, 15), paint)
+        d.line((5, 5, 9, 2), fill=1)
+        d.rectangle((5, 5, 6, 6), fill=1)
+    return _symbol((12, 12), paint)
 
 
 def _sym_bowl():
@@ -312,7 +338,9 @@ def status_layout(theme):
         spec['x'] = x
         x -= STATUS_GAP
     for spec in specs:
-        iy = 20 - spec['ih'] // 2
+        # Symbol widgets sit on the same baseline as their value text so the row
+        # reads as one line; round badges stay optically centred.
+        iy = (24 - spec['ih']) if spec['kind'] >= 3 else (20 - spec['ih'] // 2)
         icon_slot = len(regions)
         regions.append((spec['x'], iy, spec['iw'], spec['ih']))
         text_slot = 0
@@ -393,12 +421,12 @@ def headers(keys,theme,out):
  packed_icons=[]
  for icon in ICONS:
   blob=[]
-  for row in icon[:19]:
+  for row in icon[:15]:
    blob += [(row>>16)&255,(row>>8)&255,row&255]
   packed_icons.append(blob)
- rows+=['};','static const u8 connection_icons[3][57]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
+ rows+=['};','static const u8 connection_icons[3][45]={']+[' {'+','.join(map(str,r))+'},' for r in packed_icons]+['};']
  case_a=[font['ascii']['A'],LOWER_A]
- rows+=['static const u16 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
+ rows+=['static const u8 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
  return layout
 def base_frame(theme,phase=0):

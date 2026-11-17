@@ -1,9 +1,7 @@
 {
   "left": {
     "type": "time",
-    "text": "南柯一梦",
-    "bowls": 3,
-    "fish": 1
+    "text": "南柯一梦"
   },
   "right": [
     "conn",
@@ -11,7 +9,7 @@
     "battery"
   ],
   "values": {
-    "rate": "--",
-    "debounce": "--"
+    "rate": "1000",
+    "debounce": "5"
   }
 }

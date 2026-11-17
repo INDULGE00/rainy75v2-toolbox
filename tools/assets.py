@@ -104,10 +104,11 @@ STATUS_WIDGETS = {
     'conn':     (24, 20, 0, 0, 0),
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
-    'speed':    (12, 12, 23, 7, 3),
-    'rate':     (12, 12, 23, 7, 4),
-    'debounce': (12, 12, 23, 7, 5),
+    'speed':    (17, 17, 23, 7, 3),
+    'rate':     (17, 17, 35, 7, 4),
+    'debounce': (18, 15, 35, 7, 5),
 }
+STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
 STATUS_RIGHT_MAX = 3
 STATUS_GAP = 9
 STATUS_RIGHT_EDGE = 310
@@ -121,15 +122,13 @@ def status_config():
     cfg = load(STATUSBAR_FILE) if STATUSBAR_FILE.exists() else {}
     left = cfg.get('left') or {}
     kind = left.get('type', 'time')
-    if kind not in ('time', 'text', 'bowl'):
+    if kind not in ('time', 'text'):
         kind = 'time'
     text = ''.join(str(left.get('text') or ''))[:STATUS_TEXT_MAX]
     bowls = max(0, min(STATUS_BOWLS_MAX, int(left.get('bowls') or 0)))
     fish = 1 if int(left.get('fish') or 0) else 0
     if kind == 'text' and not text:
         kind, text = 'time', ''
-    if kind == 'bowl' and not (bowls or fish):
-        kind = 'time'
     right = []
     for wid in cfg.get('right') or []:
         if wid in STATUS_WIDGETS and wid not in right:
@@ -178,32 +177,33 @@ def _symbol(size, painter):
     return im
 
 
-N_LOWER = ('00000', '00000', '11110', '10001', '10001', '10001', '00000')
-
-
 def _sym_rate():
-    """Two lowercase n's, mirroring the reference report-rate glyph."""
+    """Two lowercase n's with square shoulders (reference report-rate glyph)."""
     def paint(d):
         for i in range(2):
-            for y, row in enumerate(N_LOWER):
-                for x, cell in enumerate(row):
-                    if cell == '1':
-                        d.point((i * 6 + x, y + 2), fill=1)
-    return _symbol((12, 12), paint)
+            ox = i * 8
+            d.line((ox + 1, 3, ox + 1, 12), fill=1, width=2)
+            d.line((ox + 1, 3, ox + 4, 3), fill=1, width=2)
+            d.line((ox + 4, 3, ox + 4, 12), fill=1, width=2)
+    return _symbol((17, 15), paint)
 
 
 def _sym_debounce():
+    """Sharp ECG spike (reference debounce glyph)."""
     def paint(d):
-        d.line([(0, 8), (3, 8), (4, 3), (6, 10), (8, 2), (10, 8), (12, 8)], fill=1, width=2)
-    return _symbol((13, 12), paint)
+        d.line([(0, 9), (3, 9), (5, 2), (7, 13), (9, 5), (11, 9), (17, 9)], fill=1, width=2)
+    return _symbol((18, 15), paint)
 
 
 def _sym_speed():
+    """Speedometer: ring, tick marks and a needle (reference typing-speed glyph)."""
     def paint(d):
-        d.ellipse((0, 0, 11, 11), outline=1)
-        d.line((6, 6, 10, 2), fill=1)
-        d.ellipse((5, 5, 7, 7), fill=1)
-    return _symbol((12, 12), paint)
+        d.ellipse((1, 1, 15, 15), outline=1)
+        for tx, ty in ((8, 0), (14, 3), (16, 8), (14, 13), (8, 16), (2, 13), (0, 8), (2, 3)):
+            d.point((tx, ty), fill=1)
+        d.line((8, 8, 12, 3), fill=1)
+        d.rectangle((7, 7, 9, 9), fill=1)
+    return _symbol((17, 17), paint)
 
 
 def _sym_bowl():
@@ -243,10 +243,17 @@ def _pack(im):
     return bytes(out)
 
 
+LOWER_EXTRA = {
+    'z': ('00000', '11111', '00010', '00100', '01000', '11111', '00000'),
+    's': ('00000', '01111', '10000', '01110', '00001', '11110', '00000'),
+    'm': ('00000', '00000', '11010', '10101', '10101', '10101', '00000'),
+}
+
+
 def _paste_text(im, text, x, y, font):
     pos = x
     for ch in text:
-        glyph = font.get(ch) or font.get('?')
+        glyph = LOWER_EXTRA.get(ch) or font.get(ch) or font.get('?')
         for yy, row in enumerate(glyph):
             for xx, cell in enumerate(row):
                 if cell == '1' and 0 <= pos + xx < im.width and 0 <= y + yy < im.height:
@@ -323,7 +330,9 @@ def status_layout(theme):
             im.paste(icon, ((spec['iw'] - icon.width) // 2, (spec['ih'] - icon.height) // 2))
             static[icon_slot] = _pack(im)
             tim = Image.new('1', (spec['tw'], spec['th']), 0)
-            label = cfg['values']['rate'] if spec['kind'] == 4 else cfg['values']['debounce']
+            key = 'rate' if spec['kind'] == 4 else 'debounce'
+            raw = ''.join(ch for ch in cfg['values'][key] if ch.isdigit())
+            label = (raw + STATUS_UNITS[key]) if raw else '--'
             used = _paste_text(tim, label, 0, 0, font)
             tim = tim.crop((0, 0, max(1, min(spec['tw'], used - 1)), spec['th']))
             pad = Image.new('1', (spec['tw'], spec['th']), 0)

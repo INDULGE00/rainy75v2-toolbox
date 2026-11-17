@@ -75,13 +75,13 @@ function toBase64(bytes){
  for(let i=0;i<bytes.length;i+=chunk)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
  return btoa(out);
 }
-async function convertS1(bytes,src,why){
+async function convertS1(bytes,src,why,budgetKB){
  // 512 KB keeps the S1 write inside the screen's remaining external flash even
  // when the studio setting was raised for a bigger slot.
  const body={image:'data:image/gif;base64,'+toBase64(bytes),
              themeId:src.themeId&&src.themeId!=='custom'?src.themeId:undefined,
              layout:src.srcName==='build/'?'studio':'base',
-             budgetBytes:512*1024};
+             budgetBytes:(budgetKB?Number(budgetKB):512)*1024};
  let r;
  try{
   r=await fetch('../api/convert-s1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -345,6 +345,17 @@ async function step4(){
  }catch(e){await f.io.close().catch(()=>{});throw e;}
  log('屏幕烧录与全字节回读校验完成，等待设备重启…');
  await wait(2500);
+ // Prove which firmware is actually running: a stale image is the usual reason
+ // "刷完没变化" — the build tag lives in the patched UI, not in the banner.
+ try{
+  const check=await AppClient.connect();
+  try{
+   const tag=await check.queryIps(17);
+   log(tag===0x1301
+     ? `已确认屏幕正在运行 UI 1.3.1（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1301：可能刷的是旧固件`, tag===0x1301?'ok':'warn');
+  }finally{await check.close().catch(()=>{});}
+ }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }
 // Extract the device status code from whatever layer raised it (the ack object,
 // the "素材指令返回状态 N" message, or the JSDOM-ish last-ack dump inside an
@@ -368,32 +379,63 @@ function uploadProgress(label){
 // 454 B placeholder first rewrites the same file name and frees the slot, then
 // the real animation goes in - all inside one HID session to avoid extra
 // device-picker dialogs.
+// Rewrite every GIF frame delay: high frame rates starve the screen's UART ACK
+// polling, which is what makes a perfectly sized animation fail mid-upload.
+function slowGif(bytes,ms=150){
+ const b=new Uint8Array(bytes),delay=Math.round(ms/10);let frames=0;
+ for(let i=0;i<b.length-7;i++){
+  if(b[i]===0x21&&b[i+1]===0xF9&&b[i+2]===0x04&&b[i+7]===0x00){
+   b[i+4]=delay&255;b[i+5]=(delay>>8)&255;frames++;i+=7;
+  }
+ }
+ return frames?{bytes:b,frames}:null;
+}
 async function uploadS1(app){
+ const attempt=async(label,bytes)=>{
+  log(`${label}：${(bytes.length/1024).toFixed(0)} KB / 约 ${Math.ceil(bytes.length/232)} 包`, 'info');
+  await app.upload(bytes,{replaceConfirmed:true,progress:uploadProgress(label)});
+ };
+ let working=gifBytes;
  try{
-  await app.upload(gifBytes,{replaceConfirmed:true,progress:uploadProgress('写入 S1 动画')});
+  await attempt('写入 S1 动画',working);
   return 'full';
  }catch(e){
   const st=statusOf(e);
-  if((st!==4&&st!==255)||!blankBytes)throw e;
-  log(`上传被拒（状态 ${st}）：先写入 454 B 占位素材覆盖并释放同名 S1 文件…`,'warn');
-  await app.upload(blankBytes,{replaceConfirmed:true});
-  log('占位素材已写入，等待屏幕整理文件表…');
-  await wait(2500);
-  log('重新上传完整动画…');
-  try{
-   await app.upload(gifBytes,{replaceConfirmed:true,progress:uploadProgress('重试写入 S1 动画')});
-   return 'full';
-  }catch(e2){
-   const st2=statusOf(e2);
-   if((st2!==4&&st2!==255)||!liteBytes)throw e2;
-   // The screen's free flash is simply too small for this animation. Falling
-   // back automatically beats leaving the screen with no animation at all.
-   log(`完整动画仍被拒（状态 ${st2}）：屏幕剩余空间放不下，自动改用精简版（24 帧 / 250 KB）…`,'warn');
-   await app.upload(liteBytes,{replaceConfirmed:true,progress:uploadProgress('写入精简版 S1')});
-   log('已写入精简版动画：屏幕现在可用。想要更长的动画，请到定制台把「动画体积上限」调到 256 KB 重新生成后再传','warn');
-   return 'lite';
+  // 4 = slot full, 255 = file table not settled. Both are cleared by rewriting
+  // the 454 B placeholder under the same name first.
+  if((st===4||st===255)&&blankBytes){
+   log(`上传被拒（状态 ${st}）：先写入 454 B 占位素材释放同名 S1 文件…`,'warn');
+   await app.upload(blankBytes,{replaceConfirmed:true});
+   await wait(2500);
+   try{await attempt('重试写入 S1 动画',working);return 'full';}
+   catch(e2){log(`仍然失败：${e2.message}`,'warn');}
+  }else{
+   log(`上传失败：${e.message}`,'warn');
   }
  }
+ // Automatic degradation: slower frame delay first (no size change), then a
+ // re-converted, smaller animation, then the shipped lite fallback.
+ const slowed=slowGif(working,150);
+ if(slowed){
+  log(`自动降级：把 ${slowed.frames} 帧的时长改成 150 ms 后重传（等于诊断页的「降低动画负载」）…`,'warn');
+  try{await attempt('写入降速 S1 动画',slowed.bytes);log('降速后上传成功','ok');return 'slowed';}
+  catch(e){log(`降速重传仍失败：${e.message}`,'warn');}
+ }
+ try{
+  const small=await convertS1(working,{themeId:local.themeId,srcName:'build/'},'动画仍然传不进去','256');
+  const slowedSmall=slowGif(small,150);
+  log('自动降级：改用 256 KB 上限重新生成后再传（帧数更少）…','warn');
+  await attempt('写入小体积 S1 动画',slowedSmall?slowedSmall.bytes:small);
+  log('小体积动画上传成功','ok');
+  return 'small';
+ }catch(e){log(`小体积重试失败：${e.message}`,'warn');}
+ if(liteBytes){
+  log('自动降级：改用内置精简版（24 帧 / 245 KB）…','warn');
+  await attempt('写入精简版 S1',liteBytes);
+  log('已写入精简版动画：屏幕现在可用。想要更长的动画，请到定制台把「动画体积上限」调到 256 KB 重新生成后再传','warn');
+  return 'lite';
+ }
+ throw Error('S1 写入连续失败（完整 / 降速 / 小体积 / 精简版都试过）。请确认 USB 直连有线档，或在 WOB 官方驱动里删掉不用的图片腾出空间');
 }
 
 async function step5(){

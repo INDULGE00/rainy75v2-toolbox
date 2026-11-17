@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-17T22:46:43+08:00",
+  "capturedAt": "2026-11-17T23:16:39+08:00",
   "theme": "pink",
   "themeName": "pink",
   "main": {
@@ -10,7 +10,7 @@
   },
   "ips": {
     "bytes": 540672,
-    "sha256": "8235b7573c287948285747a4aa4665c38a46ec8ce4de04ff7863edde0d024d0e",
+    "sha256": "1270c98e2c9ef6f292d5bbb8beed8c89aa201089185b51490c4b8035000baf23",
     "stockSha256": "32defab7902e57eb972a577fc6cbf3a7e57bc772d59b99f11038370412b77f41",
     "uiVersion": "0.6.3",
     "protocol": "L6"

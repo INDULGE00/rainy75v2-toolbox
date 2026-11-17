@@ -574,17 +574,12 @@ class Handler(SimpleHTTPRequestHandler):
             if path == '/api/statusbar':
                 left = data.get('left') or {}
                 kind = left.get('type')
-                if kind not in ('time', 'text', 'bowl'):
-                    raise ValueError('左边只能选：时间 / 自定义文字 / 白米饭和鱼')
+                if kind not in ('time', 'text'):
+                    raise ValueError('左边只能选：时间 / 自定义文字')
                 text = ''.join(str(left.get('text') or ''))[:6]
-                bowls = int(left.get('bowls') or 0)
-                if not 0 <= bowls <= 5:
-                    raise ValueError('米饭碗数只能是 0~5')
-                fish = 1 if left.get('fish') else 0
+                bowls, fish = 0, 0
                 if kind == 'text' and not text:
                     raise ValueError('选了自定义文字就要填内容（最多 6 字）')
-                if kind == 'bowl' and not (bowls or fish):
-                    raise ValueError('选了米饭鱼就要至少 1 个碗或 1 条鱼')
                 right = [w for w in (data.get('right') or [])
                          if w in assets.STATUS_WIDGETS and w not in []][:3]
                 values = {k: str((data.get('values') or {}).get(k) or '--')[:4]

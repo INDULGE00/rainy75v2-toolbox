@@ -247,8 +247,7 @@ function readStatusbarForm() {
   const kind = document.querySelector('input[name="sb-left"]:checked')?.value || 'time';
   const right = [...document.querySelectorAll('.sb-right:checked')].map(el => el.value);
   return {
-    left: { type: kind, text: $('#sb-text').value.trim(), bowls: Number($('#sb-bowls').value || 0),
-            fish: $('#sb-fish').checked },
+    left: { type: kind, text: $('#sb-text').value.trim() },
     right,
     values: { rate: $('#sb-rate').value.trim() || '--', debounce: $('#sb-debounce').value.trim() || '--' },
   };
@@ -258,8 +257,6 @@ function writeStatusbarForm(cfg) {
   const left = cfg.left || {};
   for (const el of document.querySelectorAll('input[name="sb-left"]')) el.checked = el.value === (left.type || 'time');
   $('#sb-text').value = left.text || '';
-  $('#sb-bowls').value = String(left.bowls ?? 3);
-  $('#sb-fish').checked = left.fish !== 0 && left.fish !== false;
   const chosen = (cfg.right || []).slice(0, SB_RIGHT_LIMIT);
   for (const el of document.querySelectorAll('.sb-right')) el.checked = chosen.includes(el.value);
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';

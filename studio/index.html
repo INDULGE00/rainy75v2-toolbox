@@ -104,13 +104,17 @@
       <p class="label">左边</p>
       <label class="radio"><input type="radio" name="sb-left" value="time"> 时间</label>
       <label class="radio"><input type="radio" name="sb-left" value="text"> 自定义文字</label>
-      <label class="radio"><input type="radio" name="sb-left" value="rice"> 米饭图标（显示电量，5 格）</label>
-      <label class="row"><span>文字内容（最多 6 字）</span><input type="text" id="sb-text" maxlength="6" placeholder="南柯一梦"></label>
-      <div class="row"><span>米饭图标（点格子自己画）</span>
-        <button id="sb-icon-clear" class="ghost">恢复默认</button>
+      <label class="radio"><input type="radio" name="sb-left" value="rice"> 自定义像素图标（默认米饭，显示电量 5 格）</label>
+      <label class="row"><span>文字内容（最多 6 个字符，中文/英文/标点均可）</span><input type="text" id="sb-text" maxlength="6" placeholder="Hi! 南柯"></label>
+      <div class="row"><span>像素图标（最大 20 宽 × 14 高，点格子画/擦）</span>
+        <button id="sb-icon-clear" class="ghost">恢复默认米饭</button>
+      </div>
+      <div class="row"><span>图标颜色</span>
+        <input type="color" id="sb-icon-color" value="#a35479">
+        <span class="muted" id="sb-icon-size">20 × 14</span>
       </div>
       <div id="sb-icon-editor" class="pix-editor"></div>
-      <p class="hint">选「米饭图标」时按电量亮格：78% → 4 个，90% 以上 → 5 个，没电的格子直接不画。点格子画/擦，画完点「保存状态栏」。</p>
+      <p class="hint">按电量亮格：78% → 4 个，90% 以上 → 5 个。点格子即画/擦、预览实时更新；图形没画满整块时按实际图形自动收紧间距。颜色默认跟随主题色。</p>
     </div>
     <div>
       <p class="label">右边（最多 3 项，列表顺序 = 屏幕从左到右）</p>

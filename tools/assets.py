@@ -1,5 +1,5 @@
 """Generate editable UI headers and original robot GIFs. SPDX-License-Identifier: MIT."""
-import argparse,json,os
+import argparse,json,os,re
 from pathlib import Path
 from PIL import Image,ImageDraw,GifImagePlugin
 
@@ -160,7 +160,7 @@ STATUS_WIDGETS = {
     'caps':     (15, 9, 0, 0, 1),
     'battery':  (22, 10, 23, 7, 2),
     'speed':    (10, 10, 23, 7, 3),
-    'keys':     (12, 10, 18, 7, 6),
+    'keys':     (12, 10, 29, 7, 6),
     'rate':     (15, 10, 35, 7, 4),
     'debounce': (19, 10, 33, 7, 5),
 }
@@ -337,21 +337,22 @@ def _sym_fish():
 # Rice-bowl icon for the left slot: the shape is a dome sitting in a bowl,
 # distilled from the reference photo. It doubles as the "empty" variant after
 # an edge pass, and can be replaced by any image through local/left-icon.png.
+# Default rice bowl, 20x14 - exactly the pixel-editor / repaint-band limit.
 RICE_ART = (
-    '........########........',
-    '....################....',
-    '..####################..',
-    '..####################..',
-    '########################',
-    '########################',
-    '.###................###.',
-    '.###................###.',
-    '..##................##..',
-    '..##................##..',
-    '...##..............##...',
-    '...##..............##...',
-    '.....###############....',
-    '.....###############....',
+    '......########......',
+    '...##############...',
+    '.##################.',
+    '.##################.',
+    '####################',
+    '####################',
+    '..##............##..',
+    '..##............##..',
+    '...##..........##...',
+    '...##..........##...',
+    '....##........##....',
+    '....##........##....',
+    '.....##########.....',
+    '.....##########.....',
 )
 
 
@@ -389,6 +390,35 @@ def left_icon():
         except Exception:
             pass
     return _art(RICE_ART)
+
+
+def left_icon_color(theme=None):
+    """Custom ink colour for the left icon; defaults to the theme ink."""
+    data = {}
+    if _LEFT_ICON_OVERRIDE is None:
+        custom = ROOT / 'local' / 'left-icon.json'
+        if custom.exists():
+            try:
+                data = load(custom) or {}
+            except Exception:
+                data = {}
+    raw = str(data.get('color') or '').strip()
+    if re.fullmatch(r'#[0-9a-fA-F]{6}', raw):
+        return raw.lower()
+    return theme['ink'] if theme else None
+
+
+def tight_icon(im):
+    """Crop to the drawn pixels so repeated copies sit at a natural gap.
+
+    An icon that only fills part of the editor used to keep its empty margins,
+    which put a large blank gap between bowls. Cropping makes the spacing follow
+    the artwork instead of the grid.
+    """
+    bb = im.getbbox()
+    if bb and bb[2] > bb[0] and bb[3] > bb[1]:
+        return im.crop(bb)
+    return im
 
 
 def _pack(im):
@@ -437,30 +467,51 @@ def status_layout(theme):
     widgets = []
     # ---- left slot (region 1) ----
     if cfg['kind'] == 'rice':
-        icon = left_icon()
-        gap = 2
+        icon = tight_icon(left_icon())
+        gap = 3
         width = 5 * icon.width + 4 * gap
-        regions.append((16, STATUS_BAND_Y, width, icon.height))
-        rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon)}
+        # Vertically centre a short icon inside the band instead of pinning it.
+        iy = STATUS_BAND_Y + max(0, (STATUS_BAND_H - icon.height) // 2)
+        regions.append((16, iy, width, icon.height))
+        rice = {'w': icon.width, 'h': icon.height, 'filled': _pack(icon),
+                'color': left_icon_color(theme)}
     elif cfg['kind'] == 'time':
         # text() draws 7 rows * scale 2 = 14 px; keep the whole glyph inside
         # the factory-repainted band y=7..20.
         regions.append((16, STATUS_BAND_Y, 94, STATUS_BAND_H))
     elif cfg['kind'] == 'text':
-        # CJK cells must also fit in y=7..20: use 14-row glyphs and a 16 px
-        # advance (6 chars = 94 px, still clear of the right-hand widgets).
-        width = max(16, len(cfg['text']) * 16 - 2)
+        # Mixed ASCII + CJK: ASCII uses the project 5x7 font at 2x (12 px
+        # advance, crisp), CJK uses a 14-row system-font cell (16 px advance).
+        plan = []
+        for ch in cfg['text']:
+            if ord(ch) < 128:
+                plan.append((ch, 12))
+            else:
+                plan.append((ch, 16))
+        width = max(16, sum(adv for _, adv in plan) - 2)
         res = (16, STATUS_BAND_Y, width, STATUS_BAND_H)
         regions.append(res)
         im = Image.new('1', (width, STATUS_BAND_H), 0)
         pos = 0
-        for ch in cfg['text']:
-            glyph = cjk_glyph(ch, STATUS_BAND_H)
-            for y, row in enumerate(glyph):
-                for x, cell in enumerate(row):
-                    if cell == '1' and pos + x < width:
-                        im.putpixel((pos + x, y), 1)
-            pos += 16
+        for ch, adv in plan:
+            if ord(ch) < 128:
+                glyph = font.get(ch) or font.get('?')
+                for y, row in enumerate(glyph):
+                    for x, cell in enumerate(row):
+                        if cell != '1':
+                            continue
+                        for dy in range(2):
+                            for dx in range(2):
+                                px, py = pos + x * 2 + dx, 3 + y * 2 + dy
+                                if px < width and py < STATUS_BAND_H:
+                                    im.putpixel((px, py), 1)
+            else:
+                cg = cjk_glyph(ch, STATUS_BAND_H)
+                for y, row in enumerate(cg):
+                    for x, cell in enumerate(row):
+                        if cell == '1' and pos + x < width:
+                            im.putpixel((pos + x, y), 1)
+            pos += adv
         static[1] = _pack(im)
     else:
         width = max(15, cfg['bowls'] * 17 + (17 if cfg['fish'] else 0))
@@ -488,7 +539,9 @@ def status_layout(theme):
     for spec in specs:
         # Symbol widgets sit on the same baseline as their value text so the row
         # reads as one line; round badges stay optically centred.
-        iy = ((STATUS_BAND_Y + STATUS_BAND_H - 1 - spec['ih']) if spec['kind'] >= 3
+        # 3/4/5 (speed / rate / debounce) share the value baseline; badges and
+        # the key counter are optically centred so they line up with battery.
+        iy = ((STATUS_BAND_Y + STATUS_BAND_H - 1 - spec['ih']) if spec['kind'] in (3, 4, 5)
               else STATUS_BAND_Y + (STATUS_BAND_H - spec['ih']) // 2)
         icon_slot = len(regions)
         regions.append((spec['x'], iy, spec['iw'], spec['ih']))
@@ -567,6 +620,9 @@ def headers(keys,theme,out):
  filled = rice['filled'] if rice else _pack(icon)
  rows+=['#define LEFT_ICON_W '+str(rice['w'] if rice else icon.width)+'u',
         '#define LEFT_ICON_H '+str(rice['h'] if rice else icon.height)+'u',
+        # Ink colour for region 1; only kicks in for the icon mode so time /
+        # text keep the normal theme ink.
+        '#define LEFT_ICON_RGB '+(str(rgb565(rice['color']))+'u' if rice else 'UI_INK'),
         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in filled)+',','};']
  blob=bytearray();offs=[]
  for i in range(len(layout['regions'])):
@@ -637,10 +693,12 @@ def _unpack(blob,w,h):
             if byte&(1<<bit):im.putpixel((x,y),1)
     return im
 
-def preview_frame(theme,keys,key=227):
+def preview_frame(theme,keys,key=227,icon_color=None):
     """Software preview: real status-bar layout plus a sample key glyph."""
     im=base_frame(theme);d=ImageDraw.Draw(im);font=load(ROOT/'profiles/font.json')['ascii']
     layout=status_layout(theme)
+    if icon_color and layout.get('rice') is not None:
+        layout['rice']['color']=icon_color
     def put(mask,rx,ry):
         for y in range(mask.height):
             for x in range(mask.width):
@@ -657,11 +715,13 @@ def preview_frame(theme,keys,key=227):
     cfg=layout['cfg']
     if cfg['kind']=='rice':
         rx,ry,rw,rh=layout['regions'][1]
-        icon=left_icon();filled=min(5,78//20+1)
-        for i in range(min(5,filled)):
+        rice=layout.get('rice') or {}
+        icon=tight_icon(left_icon());gap=3
+        ink=rice.get('color') or theme['ink']
+        for i in range(5):
             for y in range(icon.height):
                 for x in range(icon.width):
-                    if icon.getpixel((x,y)):d.point((rx+i*(icon.width+2)+x,ry+y),fill=theme['ink'])
+                    if icon.getpixel((x,y)):d.point((rx+i*(icon.width+gap)+x,ry+y),fill=ink)
     if cfg['kind']=='time':
         rx,ry,rw,rh=layout['regions'][1]
         text_at('12:34:56',rx,ry,2)
@@ -695,7 +755,7 @@ def preview_frame(theme,keys,key=227):
             text_at('246',tx,ty,1)
         elif w['kind']==6:
             tx,ty,tw,th=layout['regions'][w['text']]
-            text_at('1234',tx,ty,1)
+            text_at('12345',tx,ty,1)
     gx,gy,gw,gh=layout['regions'][0]
     g=next((g for g in keys['glyphs'] if g['key']==key),None)
     if g:

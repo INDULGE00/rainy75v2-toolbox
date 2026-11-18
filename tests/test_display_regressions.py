@@ -75,7 +75,7 @@ class KeyCountWidgetTest(unittest.TestCase):
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
         from assets import STATUS_WIDGETS, _sym_keys
-        self.assertEqual(STATUS_WIDGETS['keys'], (12, 10, 18, 7, 6))
+        self.assertEqual(STATUS_WIDGETS['keys'], (12, 10, 29, 7, 6))  # 5 digits
         self.assertEqual(_sym_keys().size, (12, 10))
 
     def test_live_icon_spec_roundtrip(self):
@@ -131,3 +131,28 @@ class HeaderCompletenessTest(unittest.TestCase):
                     self.assertIn('left_icon_filled[]', src, kind)
         finally:
             (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')
+
+
+class PixelEditorTest(unittest.TestCase):
+    def test_default_icon_fits_editor_limit(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import left_icon
+        w, h = left_icon().size
+        self.assertLessEqual(w, 20)
+        self.assertLessEqual(h, 14)
+
+    def test_tight_crop_removes_empty_margins(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import tight_icon
+        from PIL import Image, ImageDraw
+        im = Image.new('1', (20, 14), 0)
+        ImageDraw.Draw(im).rectangle((5, 4, 10, 8), fill=1)
+        self.assertEqual(tight_icon(im).size, (6, 5))
+
+    def test_icon_colour_defaults_to_theme_ink(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import left_icon_color
+        self.assertEqual(left_icon_color({'ink': '#112233'}), '#112233')

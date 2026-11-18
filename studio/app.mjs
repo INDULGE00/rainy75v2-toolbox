@@ -296,27 +296,39 @@ function writeStatusbarForm(cfg) {
   $('#sb-rate').value = (cfg.values || {}).rate && (cfg.values || {}).rate !== '--' ? cfg.values.rate : '';
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
+// 20 wide x 14 tall - the largest icon the repaint band can show.
 const RICE_DEFAULT = [
-  '000000001111111100000000',
-  '000011111111111111110000',
-  '001111111111111111111100',
-  '001111111111111111111100',
-  '111111111111111111111111',
-  '111111111111111111111111',
-  '011100000000000000011100',
-  '011100000000000000011100',
-  '001100000000000000001100',
-  '001100000000000000001100',
-  '000110000000000000011000',
-  '000110000000000000011000',
-  '000001111111111111100000',
-  '000001111111111111100000',
+  '00000011111111000000',
+  '00011111111111111000',
+  '01111111111111111110',
+  '01111111111111111110',
+  '11111111111111111111',
+  '11111111111111111111',
+  '00110000000000001100',
+  '00110000000000001100',
+  '00011000000000011000',
+  '00011000000000011000',
+  '00001100000000110000',
+  '00001100000000110000',
+  '00000111111111000000',
+  '00000111111111000000',
 ];
 let riceRows = RICE_DEFAULT.slice();
+let riceColor = '#a35479';
+function themeInk() {
+  try { return ($('#color-ink') && $('#color-ink').value) || riceColor; } catch { return riceColor; }
+}
+function applyEditorColor() {
+  const box = $('#sb-icon-editor');
+  if (box) box.style.setProperty('--px-on', riceColor);
+  const size = $('#sb-icon-size');
+  if (size) size.textContent = `${riceRows[0].length} × ${riceRows.length}`;
+}
 let ricePainting = false;
 function renderRiceEditor() {
   const box = $('#sb-icon-editor');
   if (!box) return;
+  applyEditorColor();
   box.style.gridTemplateColumns = `repeat(${riceRows[0].length}, 22px)`;
   box.replaceChildren();
   riceRows.forEach((row, y) => {
@@ -354,6 +366,7 @@ $('#sb-icon-clear').onclick = async () => {
   // removes the saved override so a future reload sees the default too.
   riceRows = RICE_DEFAULT.slice();
   renderRiceEditor();
+  applyEditorColor();
   scheduleIconPreview();
   try {
     const r = await api('/api/left-icon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -422,7 +435,8 @@ async function refreshPreview() {
     const r = await api('/api/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ colors: collectColors(), character: collectCharacter(),
-                             icon: riceRowsHex(), statusbar: readStatusbarForm() }),
+                             icon: riceRowsHex(), color: riceColor,
+                             statusbar: readStatusbarForm() }),
     });
     if (r.status !== 200) {
       const e = r.data || {}; log('预览生成失败：' + (e.error || r.status), 'err'); return;
@@ -443,6 +457,8 @@ async function loadState() {
   S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
   writeStatusbarForm(S.statusbar || {});
   if (S.leftIcon && S.leftIcon.rows && S.leftIcon.rows.length) riceRows = S.leftIcon.rows.slice();
+  riceColor = (S.leftIcon && /^#[0-9a-f]{6}$/i.test(S.leftIcon.color || '')) ? S.leftIcon.color : themeInk();
+  if ($('#sb-icon-color')) $('#sb-icon-color').value = riceColor;
   renderRiceEditor();
   setBusy(false); renderForm();
 }
@@ -551,12 +567,18 @@ for (const el of document.querySelectorAll('input[name="sb-left"]')) {
   };
 }
 $('#sb-text').oninput = () => { schedulePreview(); $('#sb-status').textContent = '文字已改，点「保存状态栏」后再重新编译写入固件'; };
+$('#sb-icon-color').oninput = () => {
+  riceColor = $('#sb-icon-color').value;
+  applyEditorColor();
+  schedulePreview();
+  $('#sb-status').textContent = '图标颜色已改，点「保存状态栏」后再重新编译写入固件';
+};
 $('#sb-save').onclick = async () => {
   const cfg = readStatusbarForm();
   $('#sb-save').disabled = true;
   try {
     const r = await api('/api/statusbar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ ...cfg, icon: riceRows }) });
+                                            body: JSON.stringify({ ...cfg, icon: riceRows, color: riceColor }) });
     if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
     S.statusbar = r.data.statusbar;
     writeStatusbarForm(S.statusbar);

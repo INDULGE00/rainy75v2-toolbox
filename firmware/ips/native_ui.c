@@ -111,9 +111,10 @@ static void draw_speed(unsigned text_slot){
 }
 /* Cumulative key presses since boot, capped at 9999 (4 digits). */
 static void draw_keycount(unsigned slot){
- u32 v=ui.key_total;unsigned j=0;u8 s[4];
- if(v>9999u)v=9999u;
- if(v>=1000u)s[j++]=(u8)('0'+v/1000u);
+ u32 v=ui.key_total;unsigned j=0;u8 s[5];
+ if(v>99999u)v=99999u;
+ if(v>=10000u)s[j++]=(u8)('0'+v/10000u);
+ if(v>=1000u)s[j++]=(u8)('0'+(v/1000u)%10u);
  if(v>=100u)s[j++]=(u8)('0'+(v/100u)%10u);
  if(v>=10u)s[j++]=(u8)('0'+(v/10u)%10u);
  s[j++]=(u8)('0'+v%10u);
@@ -164,7 +165,7 @@ void rainy_hook_cached_draw(u16 x,u16 y,u16 w,u16 h,const u8 *p){
   for(i=0;i<STATUS_REGION_COUNT;i++){
    r=&ui_geo[i];x0=x>r->x?x:r->x;y0=y>r->y?y:r->y;x1=x+w<r->x+r->w?x+w:r->x+r->w;y1=y+h<r->y+r->h?y+h:r->y+r->h;
    for(py=y0;py<y1;py++)for(px=x0;px<x1;px++){
-    bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?UI_INK:(i?UI_BG:UI_PANEL);
+    bit=(py-r->y)*r->w+px-r->x;color=ui.masks[r->offset+(bit>>3)]&(128u>>(bit&7))?(i==1?LEFT_ICON_RGB:UI_INK):(i?UI_BG:UI_PANEL);
     at=((py-y)*w+px-x)*2;((u8*)p)[at]=(u8)color;((u8*)p)[at+1]=(u8)(color>>8);
    }
   }
@@ -205,7 +206,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1314;break; /* UI build tag: 1.3.14 */case 18:v=ui.key_total;break; /* cumulative key presses */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1315;break; /* UI build tag: 1.3.15 */case 18:v=ui.key_total;break; /* cumulative key presses */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

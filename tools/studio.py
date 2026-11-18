@@ -513,7 +513,7 @@ def preview_icon(spec):
         return None
 
 
-def render_preview(colors, cfg, icon=None, statusbar=None):
+def render_preview(colors, cfg, icon=None, statusbar=None, icon_color=None):
     # An empty cfg means "no custom character loaded yet" (the GET icon-preview
     # path). Render the stock background/robot and only override the rice icon.
     try:
@@ -534,7 +534,7 @@ def render_preview(colors, cfg, icon=None, statusbar=None):
         if statusbar is not None:
             assets._STATUSBAR_OVERRIDE = statusbar
         try:
-            return assets.preview_frame(colors, keys)
+            return assets.preview_frame(colors, keys, icon_color=icon_color)
         finally:
             assets._CHAR_CFG, assets._CHAR_SPRITES = old_cfg, old_sprites
             assets._LEFT_ICON_OVERRIDE = old_icon
@@ -703,11 +703,19 @@ class Handler(SimpleHTTPRequestHandler):
                 rows = data.get('icon')
                 if isinstance(rows, list) and rows:
                     rows = [str(r) for r in rows]
+                    # 20 wide x 14 tall is the largest icon the repaint band
+                    # (y=7..20) can actually show; anything bigger would clip.
                     if (len({len(r) for r in rows}) != 1 or set(''.join(rows)) - {'0', '1'}
-                            or not 1 <= len(rows) <= 16 or not 1 <= len(rows[0]) <= 20):
-                        raise ValueError('米饭点阵格式不对（每行等长、只能 0/1，最多 16×20）')
+                            or not 1 <= len(rows) <= 14 or not 1 <= len(rows[0]) <= 20):
+                        raise ValueError('点阵格式不对：每行等长、只能 0/1，最大 20 宽 × 14 高（屏幕可显示范围）')
+                    color = str(data.get('color') or '').strip().lower()
+                    if color and not re.fullmatch(r'#[0-9a-f]{6}', color):
+                        raise ValueError('颜色格式不对：请用 #rrggbb')
                     LOCAL.mkdir(parents=True, exist_ok=True)
-                    write_json(LOCAL / 'left-icon.json', {'w': len(rows[0]), 'h': len(rows), 'rows': rows})
+                    payload = {'w': len(rows[0]), 'h': len(rows), 'rows': rows}
+                    if color:
+                        payload['color'] = color
+                    write_json(LOCAL / 'left-icon.json', payload)
                 write_json(ROOT / 'profiles' / 'statusbar.json', cfg)
                 layout = assets.status_layout(all_themes().get(
                     (read_json(BUILD_IPS / 'manifest.json', {}) or {}).get('theme') or 'pink')
@@ -882,7 +890,10 @@ class Handler(SimpleHTTPRequestHandler):
                 cfg = validate_character(raw_cfg) if raw_cfg else {}
                 icon = preview_icon(data.get('icon') or '')
                 bar = data.get('statusbar')
-                return self.send_bytes(png_bytes(render_preview(colors, cfg, icon, bar)))
+                ink = str(data.get('color') or '').strip().lower()
+                if not re.fullmatch(r'#[0-9a-f]{6}', ink):
+                    ink = None
+                return self.send_bytes(png_bytes(render_preview(colors, cfg, icon, bar, ink)))
             if path == '/api/apply':
                 theme_id = str(data.get('themeId') or '')
                 if not re.fullmatch(r'[a-z0-9_-]{1,24}', theme_id):

@@ -390,9 +390,9 @@ async function step4(){
     new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x1314
-     ? `已确认屏幕正在运行 UI 1.3.14（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1314：可能刷的是旧固件`, tag===0x1314?'ok':'warn');
+   log(tag===0x1315
+     ? `已确认屏幕正在运行 UI 1.3.15（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x1315：可能刷的是旧固件`, tag===0x1315?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }

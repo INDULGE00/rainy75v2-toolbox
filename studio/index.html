@@ -20,6 +20,15 @@
     <h2>① 角色形象</h2>
     <div class="limits-box" id="limits">正在读取规格限制…</div>
     <p class="label">1 · 选择素材</p>
+    <div class="preset-row">
+      <button class="preset-card" data-preset="deepseek" title="深蓝女仆（鲸鱼围裙）">
+        <img src="presets/deepseek.png" alt="deepseek"><span>DeepSeek</span>
+      </button>
+      <button class="preset-card" data-preset="claude" title="橘发书卷（花朵发饰）">
+        <img src="presets/claude.png" alt="claude"><span>Claude</span>
+      </button>
+      <span class="muted">点一下就套用内置素材；也可以继续用下面自己的图</span>
+    </div>
     <div id="drop" class="drop">
       <strong>拖拽图片到这里，或点此选择</strong>
       <span>GIF 动画会逐帧沿用原动作（推荐）；静态白底图会自动拆三视图并去白底；单张透明图作为一个视角。</span>
@@ -116,6 +125,7 @@
       </div>
       <div id="sb-icon-editor" class="pix-editor"></div>
       <p class="hint">按电量亮格：78% → 4 个，90% 以上 → 5 个。点格子即画/擦、预览实时更新；图形没画满整块时按实际图形自动收紧间距。颜色默认跟随主题色。</p>
+      <p class="hint">说明：<strong>每格独立颜色暂未提供</strong>——固件尾部只有 4,976 字节，单像素 RGB 至少要 3 字节/格，20×14 就是 840 字节，会直接把固件挤爆。整块图标统一配色 + 主题色跟随是目前能稳定装下的方案。</p>
       <p class="hint warn">「自定义文字」是画进 S1 底图的：改完要点「应用并重新编译 IPS 固件」，再到刷机向导第 ⑤ 步重新上传 S1 动画，文字才会变。</p>
     </div>
     <div>

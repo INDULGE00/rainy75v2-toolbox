@@ -257,6 +257,10 @@ let sbRight = [];
 function renderSbRight() {
   const list = $('#sb-right-list'), pool = $('#sb-right-pool');
   if (!list || !pool) return;
+  // Any change to the right-hand module list must show up in the live preview
+  // immediately; otherwise the preview keeps the previous widget set and the
+  // new module looks "broken" (no data).
+  if (S) scheduleIconPreview();
   list.innerHTML = sbRight.length ? sbRight.map((id, i) => `
     <span class="sb-chip">
       <b>${i + 1}</b>${SB_LABELS[id] || id}
@@ -473,6 +477,20 @@ async function refreshPreview() {
     img.src = url; img.dataset.url = url;
   } catch (e) { log('预览请求失败：' + e.message, 'err'); }
 }
+// One place that states exactly what ended up on the screen's animation slot.
+function logAnimationSummary() {
+  if (!S) return;
+  const frames = S.gifFrames || 0, per = S.character?.duration || 0, bytes = S.gifBytes || 0;
+  if (!frames || !bytes) return;
+  const budget = S.s1Budget || 0;
+  const secs = (frames * per / 1000).toFixed(2);
+  const pct = budget ? Math.round(bytes / budget * 100) : 0;
+  log(`本次动画：${frames} 帧 × ${per} ms = ${secs} s 循环 · ${(bytes / 1024).toFixed(0)} KB`
+    + ` · 约 ${Math.ceil(bytes / 232)} 个数据包`
+    + (budget ? ` · 占「${(budget / 1024).toFixed(0)} KB」上限的 ${pct}%` : ''), 'ok');
+  if (budget && bytes > budget * 0.9) log('已接近体积上限：如果屏幕报 BEGIN 状态 4，请在 ① 里把「动画体积上限」降一档，或减少帧数/加长每帧时长', 'err');
+}
+
 function schedulePreview() {
   clearTimeout(timer); timer = setTimeout(refreshPreview, 320);
 }
@@ -559,6 +577,7 @@ async function apply(compile) {
     else {
       log(compile ? '完成：新 IPS 固件与配套 GIF 已生成，请到刷机向导重刷屏幕并上传 S1' : '完成：新 GIF 已生成，只需在刷机向导重新上传 S1', 'ok');
       await loadState();
+      logAnimationSummary();
     }
   } catch (e) { log('请求失败：' + e.message, 'err'); }
   finally { setBusy(false); updateDirty(); }
@@ -588,6 +607,22 @@ $('#extract-palette').onclick = async () => {
     log(`已根据 GIF 主色生成 ${r.data.palettes.length} 套配色，点色卡可一键套用`, 'ok');
   } catch (e) { log('配色提取失败：' + e.message, 'err'); }
 };
+// Built-in character presets: fetch the shipped PNG and feed it through the
+// same upload pipeline as a user-picked file.
+for (const b of document.querySelectorAll('[data-preset]')) {
+  b.onclick = async () => {
+    const name = b.dataset.preset;
+    $('#char-name').value = name === 'deepseek' ? 'deepseek 大肥鱼' : 'claude 书卷';
+    try {
+      log(`正在套用内置素材 ${name} …`);
+      const r = await fetch(`presets/${name}.png`, {cache: 'no-store'});
+      if (!r.ok) throw Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      const file = new File([blob], `${name}.png`, {type: 'image/png'});
+      await upload(file);
+    } catch (e) { log('内置素材载入失败：' + e.message, 'err'); }
+  };
+}
 $('#drop').onclick = () => $('#file').click();
 $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };

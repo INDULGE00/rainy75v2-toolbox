@@ -68,3 +68,10 @@
 本仓库**不附带任何来源不明的角色 GIF 或动画素材**。`assets/` 下三张 `robot-*.gif` 是本项目几何绘制的原创素材，可按 MIT 使用；exe 内置快照里的 S1 动画也由 `tools/assets.py` 生成。
 
 如果你在自己的副本里手滑放进了来自网络的图片/动画，请自行确认其授权；作者不为此类第三方素材主张任何权利，收到权利人通知后会立即移除。
+
+## 4. 内置角色素材
+
+`studio/presets/deepseek.png`、`studio/presets/claude.png` 为示例角色素材，来源：
+[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)。版权归原作者，
+本项目仅作「内置素材」方便体验，替换为自己的素材不影响其余功能。
+

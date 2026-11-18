@@ -1,6 +1,9 @@
 {
   "left": {
-    "type": "rice"
+    "type": "time",
+    "text": "南柯一梦。",
+    "bowls": 0,
+    "fish": 0
   },
   "right": [
     "conn",

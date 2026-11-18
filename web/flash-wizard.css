@@ -108,3 +108,10 @@ li.failed .step-state{color:var(--err);font-weight:700}
 #bar-fill2{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#4bb98f);transition:width .25s}
 .quick-run-right{display:inline-flex;align-items:center;gap:8px}
 .qpct{font-size:12px;font-weight:700;color:var(--accent-dark);min-width:52px;text-align:right}
+
+/* Layout polish: the flash buttons stay reachable while scrolling a long page. */
+.actions { position: sticky; bottom: 0; z-index: 6; display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 12px 0; margin-top: 8px;
+  background: linear-gradient(to top, var(--bg) 72%, rgba(246,247,249,0)); }
+.precheck { max-height: 320px; overflow: auto; }
+.card { scroll-margin-top: 12px; }

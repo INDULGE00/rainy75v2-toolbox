@@ -578,6 +578,7 @@ async function apply(compile) {
       log(compile ? '完成：新 IPS 固件与配套 GIF 已生成，请到刷机向导重刷屏幕并上传 S1' : '完成：新 GIF 已生成，只需在刷机向导重新上传 S1', 'ok');
       await loadState();
       logAnimationSummary();
+      renderFirmware();
     }
   } catch (e) { log('请求失败：' + e.message, 'err'); }
   finally { setBusy(false); updateDirty(); }
@@ -607,30 +608,6 @@ $('#extract-palette').onclick = async () => {
     log(`已根据 GIF 主色生成 ${r.data.palettes.length} 套配色，点色卡可一键套用`, 'ok');
   } catch (e) { log('配色提取失败：' + e.message, 'err'); }
 };
-// Built-in character presets behave exactly like dropping the file: fetch the
-// shipped PNG, then hand it to the same drop handler so split/remove-bg/logging
-// all run through one code path.
-for (const b of document.querySelectorAll('[data-preset]')) {
-  b.onclick = async () => {
-    const name = b.dataset.preset;
-    const drop = $('#drop');
-    try {
-      drop.classList.add('over');
-      log(`正在套用内置素材 ${name} …`);
-      const r = await fetch(`presets/${name}.png`, {cache: 'no-store'});
-      if (!r.ok) throw Error('HTTP ' + r.status);
-      const blob = await r.blob();
-      const file = new File([blob], `${name}.png`, {type: 'image/png'});
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      drop.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt}));
-    } catch (e) {
-      log('内置素材载入失败：' + e.message, 'err');
-    } finally {
-      setTimeout(() => drop.classList.remove('over'), 400);
-    }
-  };
-}
 $('#drop').onclick = () => $('#file').click();
 $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };
@@ -679,6 +656,38 @@ $('#sb-save').onclick = async () => {
     log('状态栏保存失败：' + e.message, 'err');
   } finally { $('#sb-save').disabled = false; }
 };
+// Firmware locations: list the built binaries and open their folders.
+function fmtBytes(n) {
+  return n >= 1024 * 1024 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
+}
+async function renderFirmware() {
+  const box = $('#fw-list');
+  if (!box) return;
+  try {
+    const r = await fetch('/api/firmware-info', {cache: 'no-store'});
+    const d = await r.json();
+    const labels = {screen: '屏幕固件', main: '主控固件', snapshot: '内置快照（刷机向导默认用）'};
+    box.innerHTML = Object.entries(d.targets).map(([k, t]) => {
+      if (!t.exists) return `<div class="fw-row"><b>${labels[k]}</b><span class="muted">尚未生成</span></div>`;
+      const files = t.files.map(f => `${f.name} <span class="muted">${fmtBytes(f.bytes)}</span>`).join(' · ');
+      return `<div class="fw-row"><b>${labels[k]}</b><code>${t.rel}</code><span class="fw-files">${files}</span></div>`;
+    }).join('');
+  } catch (e) { box.textContent = '读取失败：' + e.message; }
+}
+async function revealFirmware(target) {
+  try {
+    const r = await api('/api/reveal', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({target})});
+    if (r.status !== 200 || !r.data.ok) throw Error((r.data || {}).error || ('HTTP ' + r.status));
+    log('已打开：' + r.data.path, 'ok');
+  } catch (e) { log('打开文件夹失败：' + e.message, 'err'); }
+}
+$('#fw-open-screen').onclick = () => revealFirmware('screen');
+$('#fw-open-main').onclick = () => revealFirmware('main');
+$('#fw-open-snapshot').onclick = () => revealFirmware('snapshot');
+$('#fw-refresh').onclick = renderFirmware;
+renderFirmware();
+
 $('#apply').onclick = () => apply(true);
 $('#assets-only').onclick = () => apply(false);
 $('#reset').onclick = async () => { log('已放弃未保存的改动，恢复上次应用/保存的配置'); await loadState(); };

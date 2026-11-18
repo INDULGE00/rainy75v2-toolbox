@@ -52,9 +52,33 @@ MAX_OUTPUT_GIF = int(os.environ.get('RAINY75_OUTPUT_GIF_LIMIT', 4 * 1024 * 1024)
 # practical S1 budget is far below the protocol's 4 MiB ceiling: a 1.87 MB /
 # 8083-packet animation is refused with BEGIN status 4 while the 250 KB lite
 # version goes in fine. Keep a conservative default and let the UI change it.
-S1_BUDGETS = [256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024]
-DEFAULT_S1_BUDGET = 512 * 1024
+# 4 MiB is the protocol ceiling (MAX_OUTPUT_GIF); pick it as the default so the
+# animation keeps every frame, and let the wizard auto-degrade if the screen's
+# external flash turns out smaller.
+S1_BUDGETS = [256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024]
+DEFAULT_S1_BUDGET = 4 * 1024 * 1024
 SETTINGS_FILE = LOCAL / 'settings.json'
+# Folder shortcuts for the "查看固件" buttons. Fixed keys only: the endpoint
+# never accepts a free-form path from the browser.
+FIRMWARE_TARGETS = {
+    'screen': lambda: BUILD_IPS,
+    'main': lambda: ROOT / 'build' / 'main',
+    'snapshot': lambda: ROOT / 'toolbox' / 'firmware',
+}
+
+
+def firmware_info():
+    out = {}
+    for key, resolve in FIRMWARE_TARGETS.items():
+        folder = resolve()
+        entry = {'path': str(folder), 'rel': str(folder.relative_to(ROOT)) if folder.exists() else '',
+                 'exists': folder.exists(), 'files': []}
+        if folder.exists():
+            for f in sorted(folder.iterdir()):
+                if f.is_file() and f.suffix.lower() in ('.bin', '.json', '.gif', '.png'):
+                    entry['files'].append({'name': f.name, 'bytes': f.stat().st_size})
+        out[key] = entry
+    return out
 # Only a guard against pathological inputs. Frame sampling is driven by the
 # encoded S1 size, not by a fixed frame budget: a GIF that fits 4 MiB keeps all
 # of its frames (see /api/upload below).
@@ -444,9 +468,18 @@ def png_bytes(im):
 
 
 def s1_budget():
-    """Current S1 size target (bytes). Small enough for the screen's free flash."""
+    """Current S1 size target (bytes)."""
     try:
-        value = int((read_json(SETTINGS_FILE, {}) or {}).get('s1Budget') or DEFAULT_S1_BUDGET)
+        raw = read_json(SETTINGS_FILE, {}) or {}
+        # One-time migration: v1.3.19 and earlier capped the default at 512 KB or
+        # 2 MB. The protocol ceiling is now selectable, so raise everyone to it
+        # once; later choices are respected.
+        if raw.get('s1BudgetVersion') != 2:
+            raw['s1Budget'] = max(int(raw.get('s1Budget') or 0), DEFAULT_S1_BUDGET)
+            raw['s1BudgetVersion'] = 2
+            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            write_json(SETTINGS_FILE, raw)
+        value = int(raw.get('s1Budget') or DEFAULT_S1_BUDGET)
     except Exception:
         value = DEFAULT_S1_BUDGET
     return max(64 * 1024, min(MAX_OUTPUT_GIF, value))
@@ -578,6 +611,8 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         try:
+            if path == '/api/firmware-info':
+                return self.send_json({'ok': True, 'targets': firmware_info()})
             if path == '/api/state':
                 return self.send_json(state_payload())
             if path.startswith('/api/sprite/'):
@@ -627,6 +662,23 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({'ok': True, 'message': 'stopping'})
             threading.Thread(target=_shutdown_soon, daemon=True).start()
             return
+        if path == '/api/reveal':
+            data = self.body()
+            key = str(data.get('target') or '')
+            resolve = FIRMWARE_TARGETS.get(key)
+            if resolve is None:
+                return self.send_json({'ok': False, 'error': '未知的固件位置'}, 400)
+            folder = resolve()
+            if not folder.exists():
+                return self.send_json(
+                    {'ok': False, 'error': '该目录还不存在：先点「应用并重新编译 IPS 固件」生成产物'}, 400)
+            if sys.platform.startswith('win'):
+                import subprocess
+                subprocess.Popen(['explorer', str(folder)])
+            else:
+                import subprocess
+                subprocess.Popen(['xdg-open', str(folder)])
+            return self.send_json({'ok': True, 'path': str(folder)})
         if path == '/api/settings':
             data = self.body()
             if 's1Budget' in data:

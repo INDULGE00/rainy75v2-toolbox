@@ -100,24 +100,13 @@ code{background:var(--chip);border-radius:5px;padding:1px 5px;font-family:ui-mon
   cursor:pointer; display:inline-block; }
 .pix-editor .px.on { background:var(--px-on,#c9729a); border-color:rgba(0,0,0,.18); }
 
-/* Built-in character presets: two clickable thumbnails above the drop zone. */
-.preset-row { display:flex; align-items:center; gap:10px; margin:8px 0 10px; flex-wrap:wrap; }
-.preset-card { display:flex; flex-direction:column; align-items:center; gap:4px;
-  padding:6px; border-radius:12px; border:1px solid #f0cfe0; background:#fffafc;
-  cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
-.preset-card:hover { transform:translateY(-2px); box-shadow:0 6px 14px rgba(163,84,121,.18); }
-.preset-card img { width:56px; height:72px; object-fit:contain; image-rendering:auto; }
-.preset-card span { font-size:12px; color:#a35479; }
-
-/* Layout polish: keep the live preview in view while editing, and give the
-   wide screens a wider working area instead of one long column. */
-main { max-width: 1180px; }
-/* Preview scrolls with the page (it now sits between 状态栏 and 应用). */
-.preview-card .preview-wrap { align-items: flex-start; }
-.preview-card img#live-preview { width: 100%; max-width: 640px; height: auto; }
-@media (max-width: 720px) {
-  .preview-card img#live-preview { max-width: 100%; }
-}
-/* Section headers get a number badge so the ①→⑤ order is obvious at a glance. */
-.card > h2 { display: flex; align-items: center; gap: 8px; }
-.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Firmware locations inside ⑤: one compact row per target. */
+.fw-actions { margin: 8px 0 10px; }
+.fw-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.fw-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--line);
+  border-radius: 9px; background: #fbfcfe; }
+.fw-row b { color: var(--accent-dark); font-weight: 600; min-width: 132px; }
+.fw-row code { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+  background: var(--chip); padding: 2px 6px; border-radius: 5px; }
+.fw-files { color: var(--muted); }

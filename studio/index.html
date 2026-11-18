@@ -20,15 +20,6 @@
     <h2>① 角色形象</h2>
     <div class="limits-box" id="limits">正在读取规格限制…</div>
     <p class="label">1 · 选择素材</p>
-    <div class="preset-row">
-      <button class="preset-card" data-preset="deepseek" title="深蓝女仆（鲸鱼围裙）">
-        <img src="presets/deepseek.png" alt="deepseek"><span>DeepSeek</span>
-      </button>
-      <button class="preset-card" data-preset="claude" title="橘发书卷（花朵发饰）">
-        <img src="presets/claude.png" alt="claude"><span>Claude</span>
-      </button>
-      <span class="muted">点一下就套用内置素材；也可以继续用下面自己的图</span>
-    </div>
     <div id="drop" class="drop">
       <strong>拖拽图片到这里，或点此选择</strong>
       <span>GIF 动画会逐帧沿用原动作（推荐）；静态白底图会自动拆三视图并去白底；单张透明图作为一个视角。</span>
@@ -42,9 +33,10 @@
       <option value="262144">256 KB · 空间很紧张时选这个</option>
       <option value="524288">512 KB · 大多数屏幕放得下</option>
       <option value="1048576">1 MB · 空间够大时可用</option>
-      <option value="2097152" selected>2 MB · 默认（最大），屏幕有足够剩余空间时用</option>
+      <option value="2097152">2 MB · 屏幕余量较大时可用</option>
+      <option value="4194304" selected>4 MB · 程序允许的上限（默认）</option>
     </select></label>
-    <p class="hint">这个上限就是最终写进屏幕 S1 的文件大小：程序会自动抽帧把动画压到上限以内。超限时屏幕会拒绝写入（刷机报 <strong>BEGIN 状态 4</strong>），程序会自动降档重试（150 ms 慢放 → 256 KB → 精简版）。</p>
+    <p class="hint"><strong>4 MB 是协议允许的上限</strong>（单次上传 4 MiB 封顶），默认已选最大。屏幕实际能装多少取决于它的外置 Flash 余量：实测有些批次只吃 250–512 KB。写不进去时屏幕会拒绝（<strong>BEGIN 状态 4</strong>），刷机向导会自动降档重试（150 ms 慢放 → 256 KB → 精简版），不用手动改。</p>
     <label class="row"><span>每帧时长 <output id="duration-out"></output></span><input type="range" id="duration" min="60" max="600" step="10"></label>
     <p class="hint">每帧时长越短越顺滑、但同样体积下能放的帧数越少；60 ms 以下容易让屏幕解码忙不过来处理串口。</p>
     <div id="loop-info" class="fit-info"></div>
@@ -171,6 +163,17 @@
     <button id="reset" class="ghost">放弃修改，恢复已保存配置</button>
   </div>
   <p id="apply-hint" class="hint">「仅生成素材」适用于只换角色、不动主题色：刷过固件的键盘只需重新上传 S1 GIF。改了颜色请务必用第二个按钮。</p>
+
+  <div class="sep"></div>
+  <p class="label">查看固件</p>
+  <div class="actions fw-actions">
+    <button id="fw-open-screen" class="ghost">打开屏幕固件文件夹</button>
+    <button id="fw-open-main" class="ghost">打开主控固件文件夹</button>
+    <button id="fw-open-snapshot" class="ghost">打开内置快照</button>
+    <button id="fw-refresh" class="ghost" title="重新读取文件列表">刷新</button>
+  </div>
+  <div id="fw-list" class="fw-list">正在读取固件位置…</div>
+
   <pre id="log" class="log">等待操作…</pre>
 </section>
 

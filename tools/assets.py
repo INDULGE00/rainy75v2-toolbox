@@ -165,6 +165,8 @@ STATUS_WIDGETS = {
     'debounce': (19, 10, 33, 7, 5),
 }
 STATUS_UNITS = {'rate': 'Hz', 'debounce': 'ms'}
+# Battery level used by every software preview (matches the drawn bowl count).
+SAMPLE_BATTERY = 84
 STATUS_RIGHT_MAX = 3
 STATUS_GAP = 9
 STATUS_BAND_Y = 7
@@ -732,7 +734,10 @@ def preview_frame(theme,keys,key=227,icon_color=None):
         rice=layout.get('rice') or {}
         icon=tight_icon(left_icon());gap=3
         ink=rice.get('color') or theme['ink']
-        for i in range(5):
+        # Same rule as the firmware: 0-19 -> 1 bowl ... 80-100 -> 5 bowls.
+        # The preview sample battery is 84%, so all five bowls are lit.
+        lit=min(5,SAMPLE_BATTERY//20+1)
+        for i in range(lit):
             for y in range(icon.height):
                 for x in range(icon.width):
                     if icon.getpixel((x,y)):d.point((rx+i*(icon.width+gap)+x,ry+y),fill=ink)
@@ -763,7 +768,7 @@ def preview_frame(theme,keys,key=227,icon_color=None):
             md.rectangle((rw-2,3,rw-1,rh-4),fill=1)
             put(mask,rx,ry)
             tx,ty,tw,th=layout['regions'][w['text']]
-            text_at('84%',tx,ty,1)
+            text_at('%d%%'%SAMPLE_BATTERY,tx,ty,1)
         elif w['kind']==3:
             tx,ty,tw,th=layout['regions'][w['text']]
             text_at('246',tx,ty,1)

@@ -112,9 +112,7 @@ code{background:var(--chip);border-radius:5px;padding:1px 5px;font-family:ui-mon
 /* Layout polish: keep the live preview in view while editing, and give the
    wide screens a wider working area instead of one long column. */
 main { max-width: 1180px; }
-@media (min-width: 1080px) {
-  .preview-card { position: sticky; top: 14px; z-index: 5; }
-}
+/* Preview scrolls with the page (it now sits between 状态栏 and 应用). */
 .preview-card .preview-wrap { align-items: flex-start; }
 .preview-card img#live-preview { width: 100%; max-width: 640px; height: auto; }
 @media (max-width: 720px) {

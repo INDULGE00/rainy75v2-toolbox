@@ -607,20 +607,28 @@ $('#extract-palette').onclick = async () => {
     log(`已根据 GIF 主色生成 ${r.data.palettes.length} 套配色，点色卡可一键套用`, 'ok');
   } catch (e) { log('配色提取失败：' + e.message, 'err'); }
 };
-// Built-in character presets: fetch the shipped PNG and feed it through the
-// same upload pipeline as a user-picked file.
+// Built-in character presets behave exactly like dropping the file: fetch the
+// shipped PNG, then hand it to the same drop handler so split/remove-bg/logging
+// all run through one code path.
 for (const b of document.querySelectorAll('[data-preset]')) {
   b.onclick = async () => {
     const name = b.dataset.preset;
-    $('#char-name').value = name === 'deepseek' ? 'deepseek 大肥鱼' : 'claude 书卷';
+    const drop = $('#drop');
     try {
+      drop.classList.add('over');
       log(`正在套用内置素材 ${name} …`);
       const r = await fetch(`presets/${name}.png`, {cache: 'no-store'});
       if (!r.ok) throw Error('HTTP ' + r.status);
       const blob = await r.blob();
       const file = new File([blob], `${name}.png`, {type: 'image/png'});
-      await upload(file);
-    } catch (e) { log('内置素材载入失败：' + e.message, 'err'); }
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      drop.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt}));
+    } catch (e) {
+      log('内置素材载入失败：' + e.message, 'err');
+    } finally {
+      setTimeout(() => drop.classList.remove('over'), 400);
+    }
   };
 }
 $('#drop').onclick = () => $('#file').click();

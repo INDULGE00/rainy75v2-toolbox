@@ -40,9 +40,9 @@
     <p class="label">2 · 大小与体积（这是屏幕上真正占的空间）</p>
     <label class="row"><span>动画体积上限</span><select id="s1-budget">
       <option value="262144">256 KB · 空间很紧张时选这个</option>
-      <option value="524288" selected>512 KB · 默认，大多数屏幕放得下</option>
+      <option value="524288">512 KB · 大多数屏幕放得下</option>
       <option value="1048576">1 MB · 空间够大时可用</option>
-      <option value="2097152">2 MB · 需要屏幕有足够剩余空间</option>
+      <option value="2097152" selected>2 MB · 默认（最大），屏幕有足够剩余空间时用</option>
     </select></label>
     <p class="hint">这个上限就是最终写进屏幕 S1 的文件大小：程序会自动抽帧把动画压到上限以内。超限时屏幕会拒绝写入（刷机报 <strong>BEGIN 状态 4</strong>），程序会自动降档重试（150 ms 慢放 → 256 KB → 精简版）。</p>
     <label class="row"><span>每帧时长 <output id="duration-out"></output></span><input type="range" id="duration" min="60" max="600" step="10"></label>
@@ -57,21 +57,23 @@
     <label class="row"><span>去除白底</span><input type="checkbox" id="remove-bg" checked></label>
     <p class="hint">默认开启：只去掉与画面边缘相连的中性亮白/纯色底，角色自带的白色衣物会保留。</p>
 
-    <div class="sep"></div>
-    <p class="label">4 · 其它</p>
-    <label class="row"><span>自动拆分三视图</span><input type="checkbox" id="split" checked></label>
-    <label class="row"><span>角色名称</span><input type="text" id="char-name" maxlength="40" placeholder="deepseek 大肥鱼"></label>
-    <label class="row"><span>动作风格</span><select id="motion-style">
-      <option value="lively">温和待机动作（呼吸 / 摇摆 / 小跳，28 帧）</option>
-      <option value="turn">仅三视角轮转（原版，8 帧）</option>
-      <option value="idle">仅正面静态待机（8 帧）</option>
-    </select></label>
-    <label class="row"><span>动画顺序</span><select id="sequence">
-      <option value="turn">正面 → 侧面 → 背面 → 侧面（8 帧）</option>
-      <option value="front">仅正面（8 帧轻微浮动）</option>
-      <option value="two">正面 ↔ 侧面（8 帧）</option>
-      <option value="flip">正面 → 背面（8 帧）</option>
-    </select></label>
+    <!-- "4 · 其它" was removed from the UI; these inputs keep the upload
+         pipeline working with its previous defaults. -->
+    <div hidden>
+      <input type="checkbox" id="split" checked>
+      <input type="text" id="char-name" value="">
+      <select id="motion-style">
+        <option value="lively" selected>lively</option>
+        <option value="turn">turn</option>
+        <option value="idle">idle</option>
+      </select>
+      <select id="sequence">
+        <option value="turn" selected>turn</option>
+        <option value="front">front</option>
+        <option value="two">two</option>
+        <option value="flip">flip</option>
+      </select>
+    </div>
     <div id="sprites" class="sprites"></div>
   </section>
 
@@ -92,22 +94,9 @@
   </section>
 </div>
 
-<section class="card preview-card">
-  <h2>③ 实时预览 <small>320×172 · 放大 2 倍显示</small></h2>
-  <div class="preview-wrap">
-    <img id="live-preview" alt="屏幕实时预览" width="640" height="344">
-    <div class="preview-side">
-      <p><strong>当前已应用固件</strong></p>
-      <dl id="build-info"></dl>
-      <p class="hint">预览里包含时间 / 电量 / 大按键，这些是固件运行时叠画的；GIF 本身只提供底图与角色动画。</p>
-      <a id="gif-link" href="#" target="_blank" rel="noopener">查看生成的 S1 动画 GIF ↗</a>
-    </div>
-  </div>
-</section>
-
 <section class="card">
-  <h2>⑤ 状态栏</h2>
-  <p class="hint">左边选一样，右边最多选三样；改完点「保存状态栏」，再点④「应用并重新编译 IPS 固件」写入屏幕。</p>
+  <h2>③ 状态栏</h2>
+  <p class="hint">左边选一样，右边最多选三样；改完点「保存状态栏」，再点⑤「应用并重新编译 IPS 固件」写入屏幕。</p>
   <div class="row-2">
     <div>
       <p class="label">左边</p>
@@ -124,7 +113,7 @@
         <span class="muted" id="sb-icon-size">20 × 14</span>
       </div>
       <div id="sb-icon-editor" class="pix-editor"></div>
-      <p class="hint">按电量亮格：78% → 4 个，90% 以上 → 5 个。点格子即画/擦、预览实时更新；图形没画满整块时按实际图形自动收紧间距。颜色默认跟随主题色。</p>
+      <p class="hint">按电量亮格：<strong>0–19% 亮 1 个，20–39% 亮 2 个，40–59% 亮 3 个，60–79% 亮 4 个，80–100% 亮 5 个</strong>；电量未知时不画。点格子即画/擦、预览实时更新；图形没画满整块时按实际图形自动收紧间距。颜色默认跟随主题色。</p>
       <p class="hint">说明：<strong>每格独立颜色暂未提供</strong>——固件尾部只有 4,976 字节，单像素 RGB 至少要 3 字节/格，20×14 就是 840 字节，会直接把固件挤爆。整块图标统一配色 + 主题色跟随是目前能稳定装下的方案。</p>
       <p class="hint warn">「自定义文字」是画进 S1 底图的：改完要点「应用并重新编译 IPS 固件」，再到刷机向导第 ⑤ 步重新上传 S1 动画，文字才会变。</p>
     </div>
@@ -146,6 +135,19 @@
   </div>
 </section>
 
+<section class="card preview-card">
+  <h2>④ 实时预览 <small>320×172 · 放大 2 倍显示</small></h2>
+  <div class="preview-wrap">
+    <img id="live-preview" alt="屏幕实时预览" width="640" height="344">
+    <div class="preview-side">
+      <p><strong>当前已应用固件</strong></p>
+      <dl id="build-info"></dl>
+      <p class="hint">预览里包含时间 / 电量 / 大按键，这些是固件运行时叠画的；GIF 本身只提供底图与角色动画。</p>
+      <a id="gif-link" href="#" target="_blank" rel="noopener">查看生成的 S1 动画 GIF ↗</a>
+    </div>
+  </div>
+</section>
+
 <section class="card" id="stock-card" hidden>
   <h2>⓪ 导入你自己的原厂固件</h2>
   <p class="hint">本工具<strong>不附带任何 WOB 原厂固件</strong>（版权归原厂，不随本项目开源）。要编译屏幕固件，请从你自己的设备备份或官方烧录工具里取出原厂固件，在这里导入一次即可——文件只留在本机 <code>inputs/</code>，不会上传到任何地方。</p>
@@ -161,7 +163,7 @@
 </section>
 
 <section class="card">
-  <h2>④ 应用到本机产物</h2>
+  <h2>⑤ 应用到本机产物</h2>
   <p class="hint">上传 GIF 后会<strong>自动重新编译 IPS 固件</strong>并生成配套 S1 素材；之后到刷机向导刷一次屏幕并上传 S1，写入后即可直接显示。</p>
   <div class="actions">
     <button id="assets-only" class="ghost">仅重新生成 S1 动画素材</button>

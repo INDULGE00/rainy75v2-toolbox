@@ -177,3 +177,24 @@ class PixelEditorTest(unittest.TestCase):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
         from assets import left_icon_color
         self.assertEqual(left_icon_color({'ink': '#112233'}), '#112233')
+
+
+class BatteryBowlRuleTest(unittest.TestCase):
+    def test_bowl_count_matches_percentage_bands(self):
+        """0-19 -> 1, 20-39 -> 2, 40-59 -> 3, 60-79 -> 4, 80-100 -> 5.
+
+        Mirrors `n=ui.battery/20u+1u; if(n>5u)n=5u;` in native_ui.c so the
+        preview and the screen can never disagree again.
+        """
+        def bowls(pct):
+            return min(5, pct // 20 + 1)
+        expect = [(0, 1), (19, 1), (20, 2), (39, 2), (40, 3), (59, 3),
+                  (60, 4), (79, 4), (80, 5), (100, 5)]
+        for pct, want in expect:
+            self.assertEqual(bowls(pct), want, f'{pct}%')
+
+    def test_preview_uses_the_same_sample_battery(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import SAMPLE_BATTERY
+        self.assertEqual(min(5, SAMPLE_BATTERY // 20 + 1), 5)

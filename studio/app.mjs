@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Local customization studio: edit character sprites + theme colors, rebuild in one click.
 const $ = id => document.getElementById(String(id).replace(/^#/, ''));
+// getElementById cannot take a compound selector; the pixel editor needs one.
+const $$ = sel => document.querySelector(sel);
 const COLOR_FIELDS = [
   ['background', '整屏底色'], ['panel', '键帽 / 面板底色'], ['shell', '外边框 / 阴影'],
   ['ink', '文字与线条'], ['accent', '点缀色'],
@@ -315,10 +317,13 @@ const RICE_DEFAULT = [
 ];
 let riceRows = RICE_DEFAULT.slice();
 let riceColor = '#a35479';
+// true = keep following the theme ink; false = user picked a fixed colour.
+let riceColorFollowsTheme = true;
 function themeInk() {
   try { return ($('#color-ink') && $('#color-ink').value) || riceColor; } catch { return riceColor; }
 }
 function applyEditorColor() {
+  if (riceColorFollowsTheme) riceColor = themeInk();
   const box = $('#sb-icon-editor');
   if (box) box.style.setProperty('--px-on', riceColor);
   const size = $('#sb-icon-size');
@@ -336,11 +341,26 @@ function renderRiceEditor() {
       const c = document.createElement('span');
       c.className = cell === '1' ? 'px on' : 'px';
       c.dataset.x = String(x); c.dataset.y = String(y);
-      c.onmousedown = e => { e.preventDefault(); ricePainting = true; paintCell(x, y); };
-      c.onmouseenter = () => { if (ricePainting) paintCell(x, y); };
       box.append(c);
     });
   });
+  // Event delegation: the element under the pointer is the one we recolour, so
+  // no selector lookup is involved (the old getElementById call always missed).
+  if (!box.dataset.wired) {
+    box.dataset.wired = '1';
+    box.addEventListener('mousedown', e => {
+      const t = e.target && e.target.closest ? e.target.closest('.px') : null;
+      if (!t) return;
+      e.preventDefault();
+      ricePainting = true;
+      paintCell(Number(t.dataset.x), Number(t.dataset.y), t);
+    });
+    box.addEventListener('mouseover', e => {
+      if (!ricePainting) return;
+      const t = e.target && e.target.closest ? e.target.closest('.px') : null;
+      if (t) paintCell(Number(t.dataset.x), Number(t.dataset.y), t);
+    });
+  }
 }
 function riceRowsHex() {
   const bits = riceRows.join('');
@@ -351,12 +371,18 @@ function riceRowsHex() {
 // One preview path for everything: the icon currently painted in the editor
 // is sent with each preview so the POST render never overwrites it with the
 // last saved icon.
-function scheduleIconPreview() { schedulePreview(); }
-function paintCell(x, y) {
+let iconPreviewTimer = null;
+function scheduleIconPreview() {
+  // Paint feedback must feel immediate; 320 ms was tuned for colour inputs.
+  clearTimeout(iconPreviewTimer);
+  iconPreviewTimer = setTimeout(() => { refreshPreview(); }, 60);
+}
+function paintCell(x, y, node) {
   const row = riceRows[y];
+  if (!row || x < 0 || x >= row.length) return;
   const next = row[x] === '1' ? '0' : '1';
   riceRows[y] = row.slice(0, x) + next + row.slice(x + 1);
-  const el = $(`#sb-icon-editor .px[data-x="${x}"][data-y="${y}"]`);
+  const el = node || $$(`#sb-icon-editor .px[data-x="${x}"][data-y="${y}"]`);
   if (el) el.className = next === '1' ? 'px on' : 'px';
   scheduleIconPreview();
 }
@@ -435,7 +461,8 @@ async function refreshPreview() {
     const r = await api('/api/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ colors: collectColors(), character: collectCharacter(),
-                             icon: riceRowsHex(), color: riceColor,
+                             icon: riceRowsHex(),
+                             color: riceColorFollowsTheme ? null : riceColor,
                              statusbar: readStatusbarForm() }),
     });
     if (r.status !== 200) {
@@ -456,8 +483,16 @@ async function loadState() {
   S = r.data;
   S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
   writeStatusbarForm(S.statusbar || {});
-  if (S.leftIcon && S.leftIcon.rows && S.leftIcon.rows.length) riceRows = S.leftIcon.rows.slice();
-  riceColor = (S.leftIcon && /^#[0-9a-f]{6}$/i.test(S.leftIcon.color || '')) ? S.leftIcon.color : themeInk();
+  if (S.leftIcon && S.leftIcon.rows && S.leftIcon.rows.length) {
+    // Older saved icons may be wider/taller than the band allows; crop them so
+    // the editor grid always matches what the screen can show.
+    const rows = S.leftIcon.rows.slice(0, 14);
+    const w = Math.min(20, Math.min(...rows.map(r => r.length)));
+    riceRows = rows.map(r => r.slice(0, w));
+  }
+  const savedColor = (S.leftIcon && S.leftIcon.color) || '';
+  riceColorFollowsTheme = !/^#[0-9a-f]{6}$/i.test(savedColor);
+  riceColor = riceColorFollowsTheme ? themeInk() : savedColor;
   if ($('#sb-icon-color')) $('#sb-icon-color').value = riceColor;
   renderRiceEditor();
   setBusy(false); renderForm();
@@ -569,16 +604,28 @@ for (const el of document.querySelectorAll('input[name="sb-left"]')) {
 $('#sb-text').oninput = () => { schedulePreview(); $('#sb-status').textContent = '文字已改，点「保存状态栏」后再重新编译写入固件'; };
 $('#sb-icon-color').oninput = () => {
   riceColor = $('#sb-icon-color').value;
+  riceColorFollowsTheme = false;
   applyEditorColor();
-  schedulePreview();
+  scheduleIconPreview();
   $('#sb-status').textContent = '图标颜色已改，点「保存状态栏」后再重新编译写入固件';
+};
+$('#sb-icon-color-reset').onclick = () => {
+  // Follow the theme again: clear the saved custom colour and pick up the
+  // current "ink" swatch so the icon matches the rest of the UI.
+  riceColorFollowsTheme = true;
+  riceColor = themeInk();
+  $('#sb-icon-color').value = riceColor;
+  applyEditorColor();
+  scheduleIconPreview();
+  $('#sb-status').textContent = '已改回主题色（保存后生效）';
 };
 $('#sb-save').onclick = async () => {
   const cfg = readStatusbarForm();
   $('#sb-save').disabled = true;
   try {
     const r = await api('/api/statusbar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ ...cfg, icon: riceRows, color: riceColor }) });
+                                            body: JSON.stringify({ ...cfg, icon: riceRows,
+                                                  color: riceColorFollowsTheme ? '' : riceColor }) });
     if (r.status !== 200 || !r.data.ok) throw Error(r.data.error || ('HTTP ' + r.status));
     S.statusbar = r.data.statusbar;
     writeStatusbarForm(S.statusbar);

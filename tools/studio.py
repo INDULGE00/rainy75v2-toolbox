@@ -703,11 +703,14 @@ class Handler(SimpleHTTPRequestHandler):
                 rows = data.get('icon')
                 if isinstance(rows, list) and rows:
                     rows = [str(r) for r in rows]
-                    # 20 wide x 14 tall is the largest icon the repaint band
-                    # (y=7..20) can actually show; anything bigger would clip.
-                    if (len({len(r) for r in rows}) != 1 or set(''.join(rows)) - {'0', '1'}
-                            or not 1 <= len(rows) <= 14 or not 1 <= len(rows[0]) <= 20):
-                        raise ValueError('点阵格式不对：每行等长、只能 0/1，最大 20 宽 × 14 高（屏幕可显示范围）')
+                    if len({len(r) for r in rows}) != 1 or set(''.join(rows)) - {'0', '1'}:
+                        raise ValueError('点阵格式不对：每行等长、只能 0/1')
+                    # Crop to the displayable area instead of rejecting: an icon
+                    # saved by an older build may be wider than 20 px, and
+                    # failing the whole save silently kept the old left mode.
+                    rows = [r[:assets.ICON_MAX_W] for r in rows[:assets.ICON_MAX_H]]
+                    if not rows or not rows[0]:
+                        raise ValueError('点阵是空的，请至少画一个像素')
                     color = str(data.get('color') or '').strip().lower()
                     if color and not re.fullmatch(r'#[0-9a-f]{6}', color):
                         raise ValueError('颜色格式不对：请用 #rrggbb')
@@ -885,9 +888,16 @@ class Handler(SimpleHTTPRequestHandler):
             if path == '/api/preview':
                 colors = validate_colors(data.get('colors'))
                 raw_cfg = data.get('character')
-                # Preview must also work before any character is uploaded (e.g.
-                # while editing the rice icon on a fresh install).
-                cfg = validate_character(raw_cfg) if raw_cfg else {}
+                # Preview must never fail because of character state: while
+                # painting the pixel icon we only care about the status bar, so
+                # an incomplete/absent character renders the stock robot instead
+                # of returning 500 (which silently froze the live preview).
+                cfg = {}
+                if raw_cfg:
+                    try:
+                        cfg = validate_character(raw_cfg)
+                    except Exception:
+                        cfg = {}
                 icon = preview_icon(data.get('icon') or '')
                 bar = data.get('statusbar')
                 ink = str(data.get('color') or '').strip().lower()

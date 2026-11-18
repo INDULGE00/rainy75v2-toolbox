@@ -203,6 +203,9 @@ def status_config():
             'right': right, 'values': values}
 
 
+# Largest icon the factory-repainted band (y=7..20, 14 px tall) can show.
+ICON_MAX_W, ICON_MAX_H = 20, 14
+
 _cjk_cache = {}
 
 
@@ -386,6 +389,10 @@ def left_icon():
             data = load(custom)
             rows = [str(r) for r in data.get('rows') or []]
             if rows and len({len(r) for r in rows}) == 1 and set(''.join(rows)) <= {'0', '1'}:
+                # Legacy files saved before the 20x14 limit are cropped here so
+                # an old 24-wide icon can never overflow the repaint band.
+                rows = rows[:ICON_MAX_H]
+                rows = [r[:ICON_MAX_W] for r in rows]
                 return _art([r.replace('0', '.').replace('1', '#') for r in rows])
         except Exception:
             pass

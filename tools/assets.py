@@ -487,39 +487,10 @@ def status_layout(theme):
         # the factory-repainted band y=7..20.
         regions.append((16, STATUS_BAND_Y, 94, STATUS_BAND_H))
     elif cfg['kind'] == 'text':
-        # Mixed ASCII + CJK: ASCII uses the project 5x7 font at 2x (12 px
-        # advance, crisp), CJK uses a 14-row system-font cell (16 px advance).
-        plan = []
-        for ch in cfg['text']:
-            if ord(ch) < 128:
-                plan.append((ch, 12))
-            else:
-                plan.append((ch, 16))
-        width = max(16, sum(adv for _, adv in plan) - 2)
-        res = (16, STATUS_BAND_Y, width, STATUS_BAND_H)
-        regions.append(res)
-        im = Image.new('1', (width, STATUS_BAND_H), 0)
-        pos = 0
-        for ch, adv in plan:
-            if ord(ch) < 128:
-                glyph = font.get(ch) or font.get('?')
-                for y, row in enumerate(glyph):
-                    for x, cell in enumerate(row):
-                        if cell != '1':
-                            continue
-                        for dy in range(2):
-                            for dx in range(2):
-                                px, py = pos + x * 2 + dx, 3 + y * 2 + dy
-                                if px < width and py < STATUS_BAND_H:
-                                    im.putpixel((px, py), 1)
-            else:
-                cg = cjk_glyph(ch, STATUS_BAND_H)
-                for y, row in enumerate(cg):
-                    for x, cell in enumerate(row):
-                        if cell == '1' and pos + x < width:
-                            im.putpixel((pos + x, y), 1)
-            pos += adv
-        static[1] = _pack(im)
+        # Custom text is baked into the S1 background (see draw_left_text), so
+        # it needs no overlay region and costs no flash. Indices shift
+        # automatically because every slot below uses len(regions).
+        pass
     else:
         width = max(15, cfg['bowls'] * 17 + (17 if cfg['fish'] else 0))
         regions.append((16, 14, width, 12))
@@ -592,14 +563,18 @@ def status_layout(theme):
 def headers(keys,theme,out):
  out.mkdir(parents=True,exist_ok=True);font=load(ROOT/'profiles/font.json')
  chars=[chr(c) for c in range(32,97)]+list('{|}~')
- grids=[font['ascii'][c] for c in chars]+[g['rows'] for g in font['icons']]
+ # Only six of the sixteen symbol glyphs are reachable from key_mask (tab,
+ # shift, win, caps, delete, insert). Shipping the other ten wasted 50 B of a
+ # 4,976-byte tail; they are renumbered to 128..133 below.
+ USED_ICONS=(2,3,11,13,14,15)
+ grids=[font['ascii'][c] for c in chars]+[font['icons'][i]['rows'] for i in USED_ICONS]
  rows=['/* SPDX-License-Identifier: MIT; generated editable pixel cells. */','static const unsigned char cache_font[][5]={']
  packed=[]
  for glyph in grids:
   bits=''.join(format(int(r,2),'05b') for r in glyph)
   packed.append([int(bits[i:i+8].ljust(8,'0'),2) for i in range(0,35,8)])
  rows+=[' {'+','.join(str(v) for v in g)+'},' for g in packed]
- rows+=['};','static unsigned glyph_index(unsigned c){if(c>=97&&c<=122)c-=32;if(c>=128&&c<144)return 69+c-128;if(c>=32&&c<=126)return c-32-(c>=123?26:0);return 31;}']
+ rows+=['};','static unsigned glyph_index(unsigned c){if(c>=97&&c<=122)c-=32;if(c>=128&&c<134)return 69+c-128;if(c>=32&&c<=126)return c-32-(c>=123?26:0);return 31;}']
  (out/'cache_font.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
  rows=['/* SPDX-License-Identifier: MIT; generated from profiles. */','#define UI_IDLE_MS 0u','#define UI_USB_RAW 1','#define UI_RF_RAW 0',
          '#define UI_INK '+str(rgb565(theme['ink']))+'u','#define UI_BG '+str(rgb565(theme['background']))+'u',
@@ -610,7 +585,10 @@ def headers(keys,theme,out):
  for i,(x,y,w,h) in enumerate(layout['regions']):
   size=(w*h+7)//8
   rows.append(' {'+','.join(map(str,[x,y,offset,size,w,h]))+'},');offset+=size
+ kinds={w['kind'] for w in layout['widgets']}
  rows+=['};','#define STATUS_REGION_COUNT '+str(len(layout['regions']))+'u',
+        '#define HAVE_SPEED '+('1u' if 3 in kinds else '0u'),
+        '#define HAVE_KEYS '+('1u' if 6 in kinds else '0u'),
         '#define STATUS_MASK_BYTES '+str(layout['total'])+'u',
         '#define STATUS_LEFT_KIND '+str({'time':0,'text':1,'rice':2}[layout['cfg']['kind']])+'u',
         'typedef struct {u8 kind,icon,text;} StatusWidget;','static const StatusWidget status_right[]={']
@@ -620,17 +598,15 @@ def headers(keys,theme,out):
   rows.append(' {0,1,0},')
  rows+=['};']
  rice=layout.get('rice')
- # draw_rice() is compiled unconditionally, so left_icon_filled must exist in
- # every build - otherwise selecting time/text fails at link time. When rice
- # is not the active mode, still emit the default bowl as harmless data.
- icon = left_icon()
- filled = rice['filled'] if rice else _pack(icon)
- rows+=['#define LEFT_ICON_W '+str(rice['w'] if rice else icon.width)+'u',
-        '#define LEFT_ICON_H '+str(rice['h'] if rice else icon.height)+'u',
-        # Ink colour for region 1; only kicks in for the icon mode so time /
-        # text keep the normal theme ink.
-        '#define LEFT_ICON_RGB '+(str(rgb565(rice['color']))+'u' if rice else 'UI_INK'),
-        'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in filled)+',','};']
+ # Only the icon mode needs this table: native_ui.c compiles draw_rice() behind
+ # `#if STATUS_LEFT_KIND==2`, so time/text builds skip the bytes entirely (that
+ # headroom is what lets custom text fit in the 4,976-byte tail).
+ if rice:
+  rows+=['#define LEFT_ICON_W '+str(rice['w'])+'u','#define LEFT_ICON_H '+str(rice['h'])+'u',
+         '#define LEFT_ICON_RGB '+str(rgb565(rice['color']))+'u',
+         'static const u8 left_icon_filled[]={',' '+','.join(str(b) for b in rice['filled'])+',','};']
+ else:
+  rows+=['#define LEFT_ICON_W 0u','#define LEFT_ICON_H 0u','#define LEFT_ICON_RGB UI_INK']
  blob=bytearray();offs=[]
  for i in range(len(layout['regions'])):
   if i in layout['static']:
@@ -651,6 +627,34 @@ def headers(keys,theme,out):
  rows+=['static const u8 case_glyphs[2][7]={']+[' {'+','.join(str(int(r,2)) for r in g)+'},' for g in case_a]+['};']
  (out/'ui_assets.h').write_text('\n'.join(rows)+'\n',encoding='utf8')
  return layout
+def draw_left_text(im,theme,text):
+    """Bake the custom status text into the background image.
+
+    Firmware overlay would cost ~27 flash bytes per CJK character out of a
+    fixed 4,976-byte tail, which overflowed as soon as five characters were
+    used. Painting it into the S1 background keeps any text essentially free
+    and lets ASCII, punctuation and CJK all render crisply.
+    """
+    font=load(ROOT/'profiles'/'font.json')['ascii']
+    d=ImageDraw.Draw(im);ink=theme['ink'];x=16
+    for ch in text:
+        if ord(ch)<128:
+            glyph=font.get(ch) or font.get('?')
+            for y,row in enumerate(glyph):
+                for cx,cell in enumerate(row):
+                    if cell=='1':
+                        # 5x7 glyph at 2x is exactly the 14 px band; no extra offset.
+                        d.rectangle((x+cx*2,7+y*2,x+cx*2+1,7+y*2+1),fill=ink)
+            x+=12
+        else:
+            for y,row in enumerate(cjk_glyph(ch,STATUS_BAND_H)):
+                for cx,cell in enumerate(row):
+                    if cell=='1' and 7+y<7+STATUS_BAND_H:
+                        d.point((x+cx,7+y),fill=ink)
+            x+=16
+    return im
+
+
 def base_frame(theme,phase=0):
  im=Image.new('RGB',(320,172),theme['background']);d=ImageDraw.Draw(im)
  if STUDIO:
@@ -666,6 +670,9 @@ def base_frame(theme,phase=0):
   d.rounded_rectangle((12,29,307,160),radius=13,fill=theme['background'])
   d.rounded_rectangle((24,34,176,145),radius=13,fill=theme['ink'])
   d.rounded_rectangle((27,37,173,142),radius=10,fill=theme['panel'])
+ bar=status_config()
+ if bar['kind']=='text' and bar['text']:
+  draw_left_text(im,theme,bar['text'])
  cfg=character()
  if cfg and cfg.get('enabled') and _CHAR_SPRITES:
   draw_character(im,theme,phase,cfg,_CHAR_SPRITES)

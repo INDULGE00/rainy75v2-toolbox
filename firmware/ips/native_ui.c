@@ -53,11 +53,10 @@ static void key_mask(void){
  if(i>=4&&i<=29)s[0]=(u8)('A'+i-4);
  else if(i>=30&&i<=39)s[0]=(ui.modifiers&1u)?(u8)"!@#$%^&*()"[i-30]:(u8)(i==39?'0':'1'+i-30);
  else if(i>=45&&i<=56)s[0]=(u8)((ui.modifiers&1u)?"_+{}|~:\"~<>?":"-=[]\\#;'`,./")[i-45];
- else if(i>=401&&i<=405){s[0]='F';s[1]='N';if(i==401)text(0,s,2,6);else{s[2]=(u8)('1'+i-401);text(0,s,3,5);}return;}
- else if((i>=58&&i<=69)||(i>=104&&i<=115)){
-  i=i>=104?i-91:i-57;s[0]='F';if(i>=10){s[1]=(u8)('0'+i/10);s[2]=(u8)('0'+i%10);text(0,s,3,5);}else{s[1]=(u8)('0'+i);text(0,s,2,6);}return;
+ else if((i>=58&&i<=69)||(i>=104&&i<=115)||(i>=401&&i<=405)){
+  i=i>=401?i-400:(i>=104?i-91:i-57);s[0]='F';if(i>=10){s[1]=(u8)('0'+i/10);s[2]=(u8)('0'+i%10);text(0,s,3,5);}else{s[1]=(u8)('0'+i);text(0,s,2,6);}return;
  }else{
-  switch(i){case 43:s[0]=130;break;case 57:s[0]=141;break;case 73:s[0]=143;break;case 76:s[0]=142;break;case 225:case 229:s[0]=131;break;case 227:case 231:s[0]=139;break;default:s[0]='?';break;}
+  switch(i){case 43:s[0]=128;break;case 57:s[0]=131;break;case 73:s[0]=133;break;case 76:s[0]=132;break;case 225:case 229:s[0]=129;break;case 227:case 231:s[0]=130;break;default:s[0]='?';break;}
  }
  text(0,s,1,9);
 }
@@ -99,6 +98,7 @@ static void draw_battery(unsigned icon_slot,unsigned text_slot){
  else{unsigned n=0;if(value>=100){s[n++]='1';s[n++]='0';s[n++]='0';}else{if(value>=10)s[n++]=(u8)('0'+value/10);s[n++]=(u8)('0'+value%10);}s[n++]='%';text(text_slot,s,n,1);}
 }
 /* Keys typed in the last ten seconds, scaled to keys per minute (CPM). */
+#if HAVE_SPEED
 static void draw_speed(unsigned text_slot){
  u32 now=clock_ms();unsigned j,n=0,v;u8 s[3];
  for(j=0;j<8;j++)if(ui.keys[j]&&(u32)(now-ui.keys[j])<10000u)n++;
@@ -109,7 +109,9 @@ static void draw_speed(unsigned text_slot){
  s[j++]=(u8)('0'+v%10u);
  text(text_slot,s,j,1);
 }
-/* Cumulative key presses since boot, capped at 9999 (4 digits). */
+#endif /* HAVE_SPEED */
+/* Cumulative key presses since boot, capped at 99999 (5 digits). */
+#if HAVE_KEYS
 static void draw_keycount(unsigned slot){
  u32 v=ui.key_total;unsigned j=0;u8 s[5];
  if(v>99999u)v=99999u;
@@ -120,7 +122,11 @@ static void draw_keycount(unsigned slot){
  s[j++]=(u8)('0'+v%10u);
  text(slot,s,j,1);
 }
-/* Left slot as a five-bowl battery gauge: ceil(percent/20) bowls are filled. */
+#endif /* HAVE_KEYS */
+/* Left slot as a five-bowl battery gauge: ceil(percent/20) bowls are filled.
+   Only compiled when the icon mode is active - the array it reads is emitted
+   conditionally, and dropping it frees the flash the text/heavy modes need. */
+#if STATUS_LEFT_KIND==2
 static void draw_rice(void){
  unsigned i,x,y,n;
  if(!ui.known||ui.battery>100u)return;
@@ -130,17 +136,25 @@ static void draw_rice(void){
   if(left_icon_filled[bit>>3]&(128u>>(bit&7)))dot(1,i*(LEFT_ICON_W+2u)+x,y);
  }
 }
+#endif /* STATUS_LEFT_KIND==2 */
+
 static void status_build(void){
  unsigned i;
  for(i=1;i<STATUS_REGION_COUNT;i++)blit(i);
- if(STATUS_LEFT_KIND==2)draw_rice();
+#if STATUS_LEFT_KIND==2
+ draw_rice();
+#endif
  for(i=0;i<sizeof status_right/sizeof status_right[0];i++){
   const StatusWidget *w=&status_right[i];
   if(w->kind==0)draw_conn(w->icon);
   else if(w->kind==1)draw_caps(w->icon);
   else if(w->kind==2)draw_battery(w->icon,w->text);
+#if HAVE_SPEED
   else if(w->kind==3&&w->text)draw_speed(w->text);
+#endif
+#if HAVE_KEYS
   else if(w->kind==6&&w->text)draw_keycount(w->text);
+#endif
  }
 }
 static void refresh(void){
@@ -206,7 +220,7 @@ void rainy_hook_ips(const u8 *p,u16 n){
  if((op==2||op==5)&&n==11){if(LCD_BUSY){ack(BUSY,seq);return;}ui.suspended=op==2;ui.active=0;ui.has_surface=0;ack(DONE,seq);return;}
  if(op==12&&n==18){ack(rtc_schedule(p+8,seq,clock_ms()),seq);return;}
  if(op==11&&n==11){
-  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1316;break; /* UI build tag: 1.3.16 */case 18:v=ui.key_total;break; /* cumulative key presses */default:ack(RANGE,seq);return;}
+  switch(seq){case 0:v=0x5536;break;case 1:v=ui.key;break;case 2:v=ui.known?(ui.battery|(ui.charge<<8)):0xffff;break;case 3:v=ui.known?ui.mode:0xffff;break;case 4:v=rtc_state();break;case 5:v=rtc_value()&65535u;break;case 6:v=rtc_value()>>16;break;case 7:v=ui.active;break;case 8:v=ui.modifiers;break;case 14:v=*(volatile u16*)0x1ffff7e0u;break;case 15:v=*(volatile u8*)0x1ffff7f3u;break;case 16:v=ui.caps;break;case 17:v=0x1317;break; /* UI build tag: 1.3.17 */case 18:v=ui.key_total;break; /* cumulative key presses */default:ack(RANGE,seq);return;}
   ack(0xb0+seq,(u16)v);return;
  }
  ack(FORMAT,seq);

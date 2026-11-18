@@ -1,5 +1,5 @@
 """Strict, local-input-only firmware patch builder. SPDX-License-Identifier: MIT."""
-import argparse,hashlib,json,os,shutil,struct,subprocess
+import argparse,hashlib,json,os,shutil,struct,subprocess,sys
 from pathlib import Path
 from assets import generate,ROOT,validate_cache_gif
 from main_profiles import MAIN_PROFILES
@@ -25,7 +25,22 @@ def elf(own):
    if n:symbols[ss[n:ss.find(b'\0',n)].decode()]=v
  segments=[struct.unpack_from('<8I',own,h[5]+i*h[9]) for i in range(h[10])]
  return h,sections,name,symbols,segments
-def run(args):subprocess.run([str(a) for a in args],check=True)
+def run(args):
+ """Run a tool, surfacing its stderr instead of a bare non-zero exit.
+
+ A failing clang invocation used to abort with only "编译失败"; the real reason
+ (for example "section '.text' will not fit in region 'APPEND'") was swallowed
+ because subprocess stderr never reached the captured build log.
+ """
+ try:
+  proc=subprocess.run([str(a) for a in args],capture_output=True,text=True)
+ except OSError as e:
+  sys.stderr.write('无法启动编译工具：%s\n' % e)
+  raise SystemExit(1)
+ if proc.returncode:
+  sys.stderr.write((proc.stdout or '')+(proc.stderr or ''))
+  raise SystemExit(proc.returncode)
+ return proc
 def compiler(a):
  result=a.clang or shutil.which('clang');require(result,'Clang not found; pass --clang');return result
 def thumb_bl(source,target):

@@ -726,8 +726,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({'ok': True, 'statusbar': cfg,
                                        'regions': len(layout['regions']),
                                        'maskBytes': layout['total'],
-                                       'log': '状态栏已保存：左边 %s，右边 %s（掩码 %d B，%d 个区域）。点「应用并重新编译 IPS 固件」后生效。'
-                                              % (kind, ','.join(right) or '无', layout['total'], len(layout['regions']))})
+                                       'log': '状态栏已保存：左边 %s，右边 %s（掩码 %d B，%d 个区域）。点「应用并重新编译 IPS 固件」后生效%s。'
+                                              % (kind, ','.join(right) or '无', layout['total'], len(layout['regions']),
+                                                 '；自定义文字画在 S1 底图上，还要在刷机向导第 ⑤ 步重新上传 S1' if kind == 'text' else '')})
             if path == '/api/convert-s1':
                 url = data.get('image') or ''
                 if not (isinstance(url, str) and url.startswith('data:image/gif')):

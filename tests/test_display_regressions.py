@@ -95,7 +95,7 @@ class LeftSlotBandTest(unittest.TestCase):
         theme = load(ROOT / 'profiles/themes.json')['pink']
         orig = (ROOT / 'profiles/statusbar.json').read_text(encoding='utf8')
         try:
-            for kind in ('time', 'text', 'rice'):
+            for kind in ('time', 'rice'):
                 cfg = {'left': {'type': kind, 'text': '南柯一梦'},
                        'right': ['conn', 'caps', 'battery']}
                 (ROOT / 'profiles/statusbar.json').write_text(
@@ -104,15 +104,14 @@ class LeftSlotBandTest(unittest.TestCase):
                 x, y, w, h = lay['regions'][1]
                 self.assertEqual(y, STATUS_BAND_Y, kind)
                 self.assertLessEqual(y + h, STATUS_BAND_Y + STATUS_BAND_H, kind)
-                # text mode also carries a 14-row static bitmap
-                if kind == 'text':
-                    self.assertEqual(h, STATUS_BAND_H)
         finally:
             (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')
 
 
 class HeaderCompletenessTest(unittest.TestCase):
-    def test_headers_always_define_left_icon_array(self):
+    def test_icon_mode_emits_array_others_omit_it(self):
+        """draw_rice() is compiled only for the icon mode, so time/text builds
+        must not carry its table (that headroom is what fits custom text)."""
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
         from assets import headers, load, ROOT
@@ -128,7 +127,29 @@ class HeaderCompletenessTest(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as d:
                     headers(keys, theme, Path(d))
                     src = (Path(d) / 'ui_assets.h').read_text(encoding='utf8')
-                    self.assertIn('left_icon_filled[]', src, kind)
+                    if kind == 'rice':
+                        self.assertIn('left_icon_filled[]', src)
+                    else:
+                        self.assertNotIn('left_icon_filled[]', src, kind)
+        finally:
+            (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')
+
+    def test_custom_text_is_baked_into_background(self):
+        """Custom text lives in the S1 image, so it must not add a mask region."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from assets import status_layout, load, ROOT
+        theme = load(ROOT / 'profiles/themes.json')['pink']
+        orig = (ROOT / 'profiles/statusbar.json').read_text(encoding='utf8')
+        try:
+            (ROOT / 'profiles/statusbar.json').write_text(
+                json.dumps({'left': {'type': 'text', 'text': 'Hi 南柯?'},
+                            'right': ['conn', 'caps', 'battery']}, ensure_ascii=False),
+                encoding='utf8')
+            lay = status_layout(theme)
+            # key region + conn + caps + battery icon/value = 5; nothing static
+            self.assertEqual(len(lay['regions']), 5)
+            self.assertEqual(lay['static'], {})
         finally:
             (ROOT / 'profiles/statusbar.json').write_text(orig, encoding='utf8')
 

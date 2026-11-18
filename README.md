@@ -14,6 +14,8 @@
 2. 首次启动会把内置组件释放到 `%LOCALAPPDATA%\Rainy75Toolbox\app`（约 5 秒），之后秒开。
 3. 到「刷机向导」按 ① 预检 → 勾选 4 项确认 → ①→⑥ 完整刷一次：主控 IAP → 烧主控 → 屏幕 IAP → 烧屏幕 → 上传 S1 → 校时。
 4. 之后只想换配色 / 换动画 / 校时，用向导里的 **快捷操作** 即可，不必从头刷。
+![Uploading image.png…]()
+![Uploading image.png…]()
 
 刷机必须 **USB 数据线直连键盘本体 + 有线档**；2.4G / 蓝牙刷不了屏。**刷机有风险**，先读 [免责声明](DISCLAIMER.md) 与 [恢复指南](docs/recovery.md)。
 

@@ -591,7 +591,19 @@ class Handler(SimpleHTTPRequestHandler):
         if '/api/' in (self.path or '') and sys.stderr is not None:
             super().log_message(fmt, *args)
 
+    def end_headers(self):
+        # Nothing this server hands out may be cached. The flashing wizard
+        # re-reads build/ right after a recompile; a browser-cached 200/304
+        # would silently keep serving the previous firmware.
+        if not getattr(self, '_no_store', False):
+            self._no_store = True
+            self.send_header('Cache-Control', 'no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+        super().end_headers()
+
     def send_bytes(self, data, content_type='image/png', status=200):
+        self._no_store = False
         self.send_response(status)
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(data)))

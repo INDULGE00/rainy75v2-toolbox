@@ -114,8 +114,11 @@ async function convertS1(bytes,src,why,budgetKB,skipCaptureCheck=false){
  log(`GIF 自动转换成 320×172：${src0[0]}×${src0[1]} / ${out.sourceFrames} 帧 → ${out.frames} 帧 / ${Math.round(out.bytes/1024)} KB（${out.layout==='studio'?'定制台布局':'默认布局'}）`,'warn');
  return raw;
 }
-async function fetchBytes(path){const r=await fetch(path);if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return new Uint8Array(await r.arrayBuffer());}
-async function fetchJson(path){const r=await fetch(path);if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return r.json();}
+// Never trust the HTTP cache: the studio rewrites build/ on every recompile and
+// the wizard must pick up those exact bytes.
+const noCache=path=>path+(path.includes('?')?'&':'?')+'t='+Date.now();
+async function fetchBytes(path){const r=await fetch(noCache(path),{cache:'no-store'});if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return new Uint8Array(await r.arrayBuffer());}
+async function fetchJson(path){const r=await fetch(noCache(path),{cache:'no-store'});if(!r.ok)throw Error('读取失败 '+path+' (HTTP '+r.status+')');return r.json();}
 async function optionalGif(url){
  if(!url)return null;
  const b=await fetchBytes(url).catch(()=>null);
@@ -273,6 +276,20 @@ for(const b of document.querySelectorAll('[data-src]'))b.onclick=async()=>{
  mainPlan=ipsPlan=gifBytes=liteBytes=blankBytes=null;
  refresh();await precheck();paintSource();refresh();
 };
+// Returning from the studio tab should pick up a freshly compiled firmware
+// without a manual click or a page reload.
+let refocusing=false;
+async function reloadFromDisk(){
+ if(refocusing||busy||armed)return;
+ refocusing=true;
+ try{
+  mainPlan=ipsPlan=gifBytes=liteBytes=blankBytes=null;
+  await precheck();refresh();
+ }finally{refocusing=false;}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reloadFromDisk();});
+window.addEventListener('focus',()=>{reloadFromDisk();});
+
 async function pickLocal(input,slot){
  const f=input.files&&input.files[0];
  try{
@@ -390,9 +407,9 @@ async function step4(){
     new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x131a
-     ? `已确认屏幕正在运行 UI 1.3.20（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x131a：可能刷的是旧固件`, tag===0x131a?'ok':'warn');
+   log(tag===0x131b
+     ? `已确认屏幕正在运行 UI 1.3.21（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x131b：可能刷的是旧固件`, tag===0x131b?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }

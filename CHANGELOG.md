@@ -1,5 +1,11 @@
 # 更新日志
 
+## v1.3.21
+
+- **修复「刷机向导 · build/ 最新编译」读不到刚编译的固件**：静态资源以前没有任何缓存头，浏览器会按启发式缓存 `build/ips/*.bin`、`manifest.json`，重新编译后仍拿旧字节（甚至 manifest 与 bin 版本错位）。现在服务端对所有响应统一发送 `Cache-Control: no-store, must-revalidate`，前端读取 `build/`、`profiles/`、`local/` 时再叠加时间戳并带 `cache:'no-store'`。
+- **切回向导页自动重新读取**：从定制台编译完回到向导标签页（`visibilitychange` / `focus`）会自动重跑预检，不用手动点来源按钮。
+- 屏幕 UI 构建号 `0x131b`。
+
 ## v1.3.20
 
 - **移除两张内置角色素材**：DeepSeek / Claude 的按钮、图片与相关代码全部删除；上传区回到纯拖拽/点选。

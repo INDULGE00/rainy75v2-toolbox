@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Regression tests for the studio defaults added after v1.3.21."""
+"""Regression tests for the studio defaults added in v1.3.22."""
 import json
 import sys
 import tempfile

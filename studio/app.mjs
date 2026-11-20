@@ -303,23 +303,45 @@ function writeStatusbarForm(cfg) {
   $('#sb-debounce').value = (cfg.values || {}).debounce && (cfg.values || {}).debounce !== '--' ? cfg.values.debounce : '';
 }
 // 20 wide x 14 tall - the largest icon the repaint band can show.
-const RICE_DEFAULT = [
-  '00000011111111000000',
-  '00011111111111111000',
-  '01111111111111111110',
-  '01111111111111111110',
-  '11111111111111111111',
-  '11111111111111111111',
-  '00110000000000001100',
-  '00110000000000001100',
-  '00011000000000011000',
-  '00011000000000011000',
-  '00001100000000110000',
-  '00001100000000110000',
-  '00000111111111000000',
-  '00000111111111000000',
-];
-let riceRows = RICE_DEFAULT.slice();
+// Fallbacks only; /api/state supplies the authoritative presets from tools/assets.py.
+const ICON_PRESETS_FALLBACK = {
+  rice: [
+    '00000011111111100000',
+    '00001101001000111000',
+    '00010100000010001100',
+    '00010010001001000100',
+    '00100000100000010010',
+    '00111111111111111110',
+    '00111111111111111110',
+    '00111111111111111110',
+    '00111111111101101110',
+    '00011111111101001100',
+    '00011111111011011100',
+    '00001111111011111000',
+    '00000111111111110000',
+    '00000001111111100000',
+  ],
+  book: [
+    '01111111000111111100',
+    '10000000101000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '10000000010000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '10000000010000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '11111111010111111110',
+    '10000000111000000010',
+    '01111110010011111100',
+    '00000001111100000000',
+  ],
+  blank: Array.from({ length: 14 }, () => '0'.repeat(20)),
+};
+let iconPresets = ICON_PRESETS_FALLBACK;
+let activePreset = 'rice';
+let riceRows = iconPresets.rice.slice();
 let riceColor = '#a35479';
 // true = keep following the theme ink; false = user picked a fixed colour.
 let riceColorFollowsTheme = true;
@@ -334,6 +356,32 @@ function applyEditorColor() {
   if (size) size.textContent = `${riceRows[0].length} × ${riceRows.length}`;
 }
 let ricePainting = false;
+function markIconPreset(key) {
+  activePreset = key;
+  for (const b of document.querySelectorAll('[data-icon-preset]')) b.classList.toggle('active', b.dataset.iconPreset === key);
+}
+function setIconPattern(key) {
+  if (key === 'custom') {
+    markIconPreset('custom');
+    $('#sb-status').textContent = '自定义图案：在下方点格子画/擦；全部擦掉即为空白图标';
+    return;
+  }
+  const rows = iconPresets[key];
+  if (!rows || !rows.length) return;
+  riceRows = rows.map(r => r.slice());
+  markIconPreset(key);
+  renderRiceEditor();
+  applyEditorColor();
+  scheduleIconPreview();
+  const names = { rice: '米饭', book: '书本', blank: '空白' };
+  $('#sb-status').textContent = `已选「${names[key] || key}」图案，点「保存状态栏」后再重新编译写入固件`;
+}
+function renderIconPresetButtons() {
+  const box = $('#sb-icon-presets');
+  if (!box) return;
+  for (const b of box.querySelectorAll('[data-icon-preset]')) b.onclick = () => setIconPattern(b.dataset.iconPreset);
+  markIconPreset(activePreset);
+}
 function renderRiceEditor() {
   const box = $('#sb-icon-editor');
   if (!box) return;
@@ -388,13 +436,15 @@ function paintCell(x, y, node) {
   riceRows[y] = row.slice(0, x) + next + row.slice(x + 1);
   const el = node || $$(`#sb-icon-editor .px[data-x="${x}"][data-y="${y}"]`);
   if (el) el.className = next === '1' ? 'px on' : 'px';
+  markIconPreset('custom');
   scheduleIconPreview();
 }
 document.addEventListener('mouseup', () => { ricePainting = false; });
 $('#sb-icon-clear').onclick = async () => {
   // Update the editor and the live preview immediately; the server clear only
   // removes the saved override so a future reload sees the default too.
-  riceRows = RICE_DEFAULT.slice();
+  riceRows = (iconPresets.rice || ICON_PRESETS_FALLBACK.rice).map(r => r.slice());
+  markIconPreset('rice');
   renderRiceEditor();
   applyEditorColor();
   scheduleIconPreview();
@@ -500,6 +550,10 @@ async function loadState() {
   if (r.status !== 200) { $('status-line').classList.add('bad'); $('status-line').textContent = '无法读取本机配置：' + (r.data || {}).error; return; }
   S = r.data;
   S.character = { ...DEFAULT_CHAR, ...(S.character || {}) };
+  if (S.iconPresets && S.iconPresets.rice && S.iconPresets.rice.length) {
+    iconPresets = { ...ICON_PRESETS_FALLBACK, ...S.iconPresets };
+  }
+  renderIconPresetButtons();
   writeStatusbarForm(S.statusbar || {});
   if (S.leftIcon && S.leftIcon.rows && S.leftIcon.rows.length) {
     // Older saved icons may be wider/taller than the band allows; crop them so
@@ -507,6 +561,9 @@ async function loadState() {
     const rows = S.leftIcon.rows.slice(0, 14);
     const w = Math.min(20, Math.min(...rows.map(r => r.length)));
     riceRows = rows.map(r => r.slice(0, w));
+    const match = Object.keys(iconPresets).find(k =>
+      JSON.stringify(iconPresets[k]) === JSON.stringify(riceRows));
+    markIconPreset(match || 'custom');
   }
   const savedColor = (S.leftIcon && S.leftIcon.color) || '';
   riceColorFollowsTheme = !/^#[0-9a-f]{6}$/i.test(savedColor);
@@ -608,11 +665,32 @@ $('#extract-palette').onclick = async () => {
     log(`已根据 GIF 主色生成 ${r.data.palettes.length} 套配色，点色卡可一键套用`, 'ok');
   } catch (e) { log('配色提取失败：' + e.message, 'err'); }
 };
+// Reference materials are NOT embedded: the thumbnails only show what the two
+// recommended GIFs look like. Dragging a card into the drop box asks the user
+// to pick their own local copy through the same file input as a normal upload.
+const MATERIAL_NAMES = { claude: 'claude.gif', deepseek: 'deepseek.gif' };
+function pickMaterial(key) {
+  const name = MATERIAL_NAMES[key] || '角色 GIF';
+  log(`已把 ${name} 放进选择框：素材不内置，请从本机选择同名文件`);
+  $('#file').click();
+}
+for (const card of document.querySelectorAll('[data-material]')) {
+  card.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', 'studio-material:' + card.dataset.material);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  card.addEventListener('click', () => pickMaterial(card.dataset.material));
+}
 $('#drop').onclick = () => $('#file').click();
 $('#file').onchange = e => upload(e.target.files[0]);
 $('#drop').ondragover = e => { e.preventDefault(); $('#drop').classList.add('over'); };
 $('#drop').ondragleave = () => $('#drop').classList.remove('over');
-$('#drop').ondrop = e => { e.preventDefault(); $('#drop').classList.remove('over'); upload(e.dataTransfer.files[0]); };
+$('#drop').ondrop = e => {
+  e.preventDefault(); $('#drop').classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) return upload(e.dataTransfer.files[0]);
+  const hint = e.dataTransfer.getData('text/plain') || '';
+  if (hint.startsWith('studio-material:')) return pickMaterial(hint.slice('studio-material:'.length));
+};
 // Switching the left-slot mode must refresh the preview immediately; before
 // this the radios were bound to a no-op so only a save+recompile showed it.
 for (const el of document.querySelectorAll('input[name="sb-left"]')) {
@@ -666,7 +744,8 @@ async function renderFirmware() {
   try {
     const r = await fetch('/api/firmware-info', {cache: 'no-store'});
     const d = await r.json();
-    const labels = {screen: '屏幕固件', main: '主控固件', snapshot: '内置快照（刷机向导默认用）'};
+    const labels = {app: '应用目录（新固件默认位置）', screen: '屏幕固件（build/ 同步源）',
+                    main: '主控固件', snapshot: '内置快照（刷机向导默认用）'};
     box.innerHTML = Object.entries(d.targets).map(([k, t]) => {
       if (!t.exists) return `<div class="fw-row"><b>${labels[k]}</b><span class="muted">尚未生成</span></div>`;
       const files = t.files.map(f => `${f.name} <span class="muted">${fmtBytes(f.bytes)}</span>`).join(' · ');
@@ -682,6 +761,7 @@ async function revealFirmware(target) {
     log('已打开：' + r.data.path, 'ok');
   } catch (e) { log('打开文件夹失败：' + e.message, 'err'); }
 }
+$('#fw-open-app').onclick = () => revealFirmware('app');
 $('#fw-open-screen').onclick = () => revealFirmware('screen');
 $('#fw-open-main').onclick = () => revealFirmware('main');
 $('#fw-open-snapshot').onclick = () => revealFirmware('snapshot');
@@ -721,7 +801,7 @@ $('#stock-main').onchange = e => importStock('main', e.target.files[0]);
 // the screen's free flash (a too-big file is refused with BEGIN status 4).
 const budgetSel = $('#s1-budget');
 if (budgetSel) {
-  budgetSel.value = String(S?.s1Budget || 524288);
+  budgetSel.value = String(S?.s1Budget || 4 * 1024 * 1024);
   budgetSel.onchange = async () => {
     const r = await api('/api/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

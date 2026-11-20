@@ -40,7 +40,7 @@
 | --- | --- | --- |
 | 时间 | 主控 RTC 每秒同步；未校时显示 `--:--:--` | 4,804 B |
 | 自定义文字 | 中英文与标点混排，**画进 S1 底图**，不占固件 | 4,780 B |
-| 自定义像素图标 | 20×14 画布，按电量点亮 1~5 个，颜色跟随主题或自选 | 4,842 B |
+| 自定义像素图标 | 20×14 画布，内置米饭 / 书本 / 空白预设，也可自定义点画（含全空）；按电量点亮 1~5 个，颜色跟随主题或自选 | 4,842 B |
 
 **右侧（最多 3 项，可排序）**：连接方式、大小写、电量、打字速率、按键累计次数（5 位）、回报率、防抖。
 
@@ -81,7 +81,9 @@
 | `s1-full.gif` / `s1-lite.gif` / `s1-blank.gif` | 完整 / 精简 / 占位三档动画 |
 | `preview.png` | 320×172 效果图 |
 
-定制台「⑤ 应用到本机产物」底部有 **查看固件** 区块：列出 `build/ips`、`build/main`、`toolbox/firmware` 三处的文件与体积，按钮可直接用资源管理器打开对应文件夹。
+主题定制台编译成功后，新屏幕固件默认同时出现在**应用所在目录**（`rainy75v2-ips.bin` 与 `rainy75v2-ips.manifest.json`；exe 版即 `%LOCALAPPDATA%\Rainy75Toolbox\app`）和 `build/ips/`。`build/ips/` 是刷机向导「build/ 最新编译」的同步源，两者每次编译一起更新，换默认位置不会让向导读不到新固件。
+
+定制台「⑤ 应用到本机产物」底部有 **查看固件** 区块：列出应用目录、`build/ips`、`build/main`、`toolbox/firmware` 四处的文件与体积，按钮可直接用资源管理器打开对应文件夹。
 
 换回自己的固件：定制台「应用并重新编译 IPS 固件」→ 运行 `python toolbox/snapshot.py`。
 
@@ -94,7 +96,7 @@ firmware/ips/     屏幕固件补丁（C，无 SDK）
 firmware/main/    主控时钟桥补丁
 tools/            构建器、素材生成、定制台后端
 web/              刷机向导、诊断页
-studio/           主题定制台（presets/ 为内置素材）
+studio/           主题定制台（presets/ 仅为 claude.gif / deepseek.gif 的参考缩略图，素材不内置）
 profiles/         字库、按键字形、主题与状态栏配置
 inputs/           原厂编译输入（SHA-256 逐个核对）
 toolbox/          桌面 exe、payload、内置快照

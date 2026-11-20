@@ -339,26 +339,52 @@ def _sym_fish():
     return _symbol((14, 12), paint)
 
 
-# Rice-bowl icon for the left slot: the shape is a dome sitting in a bowl,
-# distilled from the reference photo. It doubles as the "empty" variant after
-# an edge pass, and can be replaced by any image through local/left-icon.png.
-# Default rice bowl, 20x14 - exactly the pixel-editor / repaint-band limit.
-RICE_ART = (
-    '......########......',
-    '...##############...',
-    '.##################.',
-    '.##################.',
-    '####################',
-    '####################',
-    '..##............##..',
-    '..##............##..',
-    '...##..........##...',
-    '...##..........##...',
-    '....##........##....',
-    '....##........##....',
-    '.....##########.....',
-    '.....##########.....',
+# Left-slot pixel icons. 20x14 - exactly the pixel-editor / repaint-band limit.
+# The rows below are the authoritative presets shared with the studio UI via
+# /api/state; '#'/'.' variants are what the 1-bit art helpers consume.
+RICE_ROWS = (
+    '00000011111111100000',
+    '00001101001000111000',
+    '00010100000010001100',
+    '00010010001001000100',
+    '00100000100000010010',
+    '00111111111111111110',
+    '00111111111111111110',
+    '00111111111111111110',
+    '00111111111101101110',
+    '00011111111101001100',
+    '00011111111011011100',
+    '00001111111011111000',
+    '00000111111111110000',
+    '00000001111111100000',
 )
+BOOK_ROWS = (
+    '01111111000111111100',
+    '10000000101000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '10000000010000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '10000000010000000010',
+    '10111110010011111010',
+    '10000000010000000010',
+    '11111111010111111110',
+    '10000000111000000010',
+    '01111110010011111100',
+    '00000001111100000000',
+)
+BLANK_ROWS = tuple('0' * ICON_MAX_W for _ in range(ICON_MAX_H))
+
+
+def _rows_to_art(rows):
+    return tuple(row.replace('0', '.').replace('1', '#') for row in rows)
+
+
+# Binary rows are exposed to the browser so the editor presets cannot drift.
+ICON_PRESETS = {'rice': RICE_ROWS, 'book': BOOK_ROWS, 'blank': BLANK_ROWS}
+RICE_ART = _rows_to_art(RICE_ROWS)
+BOOK_ART = _rows_to_art(BOOK_ROWS)
 
 
 def _outline(im):
@@ -382,7 +408,7 @@ _LEFT_ICON_OVERRIDE = None
 
 
 def left_icon():
-    """Rice glyph: the pixel-editor drawing in local/left-icon.json if present."""
+    """Left glyph: the pixel-editor drawing in local/left-icon.json, else rice."""
     if _LEFT_ICON_OVERRIDE is not None:
         return _LEFT_ICON_OVERRIDE
     custom = ROOT / 'local' / 'left-icon.json'
@@ -477,6 +503,10 @@ def status_layout(theme):
     # ---- left slot (region 1) ----
     if cfg['kind'] == 'rice':
         icon = tight_icon(left_icon())
+        if not icon.getbbox():
+            # A deliberately blank custom pattern must not reserve a 20x14
+            # region (196 mask bytes) in the 4,976-byte firmware tail.
+            icon = Image.new('1', (1, 1), 0)
         gap = 3
         width = 5 * icon.width + 4 * gap
         # Vertically centre a short icon inside the band instead of pinning it.

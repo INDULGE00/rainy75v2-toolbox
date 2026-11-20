@@ -105,6 +105,8 @@ python tools/build.py ips --stock inputs/ips-stock.bin --theme mint --keys "/pat
 - `manifest.json` — 烧录时给网页工作台核对的目标/SHA 清单
 - `assets/robot-<theme>.gif` — 对应主题色的像素机器人动画（刷完要一起传进 S1 槽位）
 
+用主题定制台「应用并重新编译 IPS 固件」时，除了上面的 `build/ips/`，编译成功后还会把固件复制到**应用所在目录**（`rainy75v2-ips.bin` 与 `rainy75v2-ips.manifest.json`）。`build/ips/` 始终保留并同步更新，刷机向导的「build/ 最新编译」继续从那里读取，不受默认存放位置变化影响。
+
 > 这一版普通 IPS（UI `0.6.3 / L6`）保留了原显示逻辑，同时提供只读芯片容量与型号查询功能。
 
 ### 2. 编译键盘主控固件（CH585）

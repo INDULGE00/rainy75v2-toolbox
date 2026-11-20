@@ -61,10 +61,33 @@ SETTINGS_FILE = LOCAL / 'settings.json'
 # Folder shortcuts for the "查看固件" buttons. Fixed keys only: the endpoint
 # never accepts a free-form path from the browser.
 FIRMWARE_TARGETS = {
+    'app': lambda: ROOT,
     'screen': lambda: BUILD_IPS,
     'main': lambda: ROOT / 'build' / 'main',
     'snapshot': lambda: ROOT / 'toolbox' / 'firmware',
 }
+# Studio builds keep build/<target> as the canonical output (the flash wizard
+# reads it), then copy the finished firmware next to the app so it is the
+# default place users look. Copy names are target-specific to avoid the two
+# manifests overwriting each other in the app root.
+APP_FIRMWARE_FILES = {
+    'ips': [('rainy75v2-ips.bin', 'rainy75v2-ips.bin'),
+            ('manifest.json', 'rainy75v2-ips.manifest.json')],
+    'main': [('rainy75v2-main.bin', 'rainy75v2-main.bin'),
+             ('manifest.json', 'rainy75v2-main.manifest.json')],
+}
+
+
+def sync_firmware_to_app(target):
+    """Copy a freshly built target into the app directory (never replaces build/)."""
+    src_dir = ROOT / 'build' / target
+    copied = []
+    for src_name, dst_name in APP_FIRMWARE_FILES.get(target, []):
+        src, dst = src_dir / src_name, ROOT / dst_name
+        if src.is_file():
+            shutil.copy2(src, dst)
+            copied.append(dst.name)
+    return copied
 
 
 def firmware_info():
@@ -88,7 +111,7 @@ LIMITS = {
     'screen': [SCREEN_W, SCREEN_H], 'maxFrames': MAX_FRAMES,
     'rules': ['严格 320×172', '每帧完整且 disposal=1、不透明',
               '默认按「动画体积上限」抽帧，保证能写进屏幕外置 Flash',
-              '上限可在定制台切换（256 KB / 512 KB / 1 MB / 2 MB）'],
+              '上限可在定制台切换（256 KB / 512 KB / 1 MB / 2 MB / 4 MB）'],
 }
 
 PRESETS = {
@@ -263,7 +286,19 @@ def run_build(argv):
 
     When frozen as a single .exe there is no separate interpreter to spawn, so
     the builder is imported and executed in-process with its stdout captured.
+    On success the finished firmware is also copied next to the app.
     """
+    def finish(code, output):
+        if code == 0:
+            target = str(argv[0]) if argv else ''
+            try:
+                copied = sync_firmware_to_app(target)
+                if copied:
+                    output += '\n已同步到应用目录：' + '、'.join(copied)
+            except Exception as e:  # the build itself succeeded; don't fail it
+                output += f'\n同步到应用目录失败（build/ 仍可用于刷机向导）：{e}'
+        return code, output.strip()
+
     if getattr(sys, 'frozen', False):
         import contextlib
         import io
@@ -288,12 +323,12 @@ def run_build(argv):
         except Exception as e:  # keep the log useful instead of a traceback popup
             buf.write(f'\n{e}\n')
             code = 1
-        return code, buf.getvalue()
+        return finish(code, buf.getvalue())
     proc = subprocess.run(
         [sys.executable, str(ROOT / 'tools' / 'build.py'), *argv],
         cwd=str(ROOT), env={**os.environ, 'RAINY75_STUDIO': '1'},
         capture_output=True, text=True, timeout=300)
-    return proc.returncode, (proc.stdout + proc.stderr).strip()
+    return finish(proc.returncode, proc.stdout + proc.stderr)
 
 
 _WHITE, _BLACK = (255, 255, 255), (0, 0, 0)
@@ -517,6 +552,7 @@ def state_payload():
         'gifUrl': f'/api/gif?t={theme_id}',
         'previewUrl': f'/api/preview?t={theme_id}',
         'limits': LIMITS,
+        'iconPresets': {k: list(rows) for k, rows in assets.ICON_PRESETS.items()},
         's1Budget': s1_budget(),
         's1BudgetOptions': S1_BUDGETS,
         'statusbar': read_json(ROOT / 'profiles' / 'statusbar.json', {}),

@@ -51,6 +51,13 @@ class IconPresetTest(unittest.TestCase):
                 saved.write_bytes(backup)
 
 
+class ThemeResolutionTest(unittest.TestCase):
+    def test_legacy_and_empty_theme_ids_fall_back(self):
+        self.assertEqual(studio.resolve_theme_id('ocean'), 'pink')
+        self.assertEqual(studio.resolve_theme_id(None, ''), 'pink')
+        self.assertEqual(studio.resolve_theme_id('mint'), 'mint')
+
+
 class StaticCharacterValidationTest(unittest.TestCase):
     def test_static_image_without_source_gif_validates(self):
         """Single-frame GIFs skip the sourceGif path; MAX_FRAMES must stay global."""

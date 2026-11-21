@@ -224,9 +224,8 @@ def convert_s1_gif(raw, theme_id=None, budget=None, layout='base', box=None, sca
     """
     import gifclip, tempfile
     budget = budget or s1_budget()
-    themes = all_themes()
-    theme_id = theme_id if theme_id in themes else ('pink' if 'pink' in themes else next(iter(themes)))
-    theme = themes[theme_id]
+    theme_id = resolve_theme_id(theme_id)
+    theme = all_themes()[theme_id]
     with tempfile.TemporaryDirectory(prefix='rainy75-convert-') as tmp:
         src = Path(tmp) / 'src.gif'
         src.write_bytes(raw)
@@ -272,6 +271,27 @@ def convert_s1_gif(raw, theme_id=None, budget=None, layout='base', box=None, sca
 
 def all_themes():
     return {**read_json(ROOT / 'profiles' / 'themes.json', {}), **read_json(THEMES_FILE, {})}
+
+
+def resolve_theme_id(*preferred):
+    """Pick a theme ID that actually has colours.
+
+    Upgrades can leave an old ID (e.g. ``ocean``) in local/character.json while
+    profiles/themes.json no longer ships it. assets.generate() then raises
+    "Unknown theme" on upload. Prefer an explicit/current ID, then the compiled
+    manifest, then pink, then any shipped theme.
+    """
+    themes = all_themes()
+    for candidate in preferred:
+        if isinstance(candidate, str) and candidate in themes:
+            return candidate
+    manifest_theme = (read_json(BUILD_IPS / 'manifest.json', {}) or {}).get('theme')
+    if isinstance(manifest_theme, str) and manifest_theme in themes:
+        return manifest_theme
+    fallback = 'pink' if 'pink' in themes else next(iter(themes), None)
+    if not fallback:
+        raise ValueError('没有可用的主题配色，请检查 profiles/themes.json')
+    return fallback
 
 
 def find_clang():
@@ -541,7 +561,7 @@ def set_s1_budget(value):
 def state_payload():
     cfg = read_json(CHAR_FILE, {}) or {}
     manifest = read_json(BUILD_IPS / 'manifest.json', {}) or {}
-    theme_id = manifest.get('theme') or cfg.get('theme') or 'pink'
+    theme_id = resolve_theme_id(manifest.get('theme'), cfg.get('theme'))
     sprites = []
     for i, rel in enumerate(cfg.get('files', [])):
         path = ROOT / rel
@@ -896,9 +916,12 @@ class Handler(SimpleHTTPRequestHandler):
                         remove_bg = bool(data.get('removeBg', True))
                         (LOCAL / 'views').mkdir(parents=True, exist_ok=True)
                         base_cfg = read_json(CHAR_FILE, {}) or {}
-                        theme_id = (base_cfg.get('theme')
-                                    or (read_json(BUILD_IPS / 'manifest.json', {}) or {}).get('theme')
-                                    or 'ocean')
+                        theme_id = resolve_theme_id(base_cfg.get('theme'))
+                        if theme_id != base_cfg.get('theme'):
+                            # Stale IDs from older releases must not keep
+                            # breaking every later upload.
+                            base_cfg['theme'] = theme_id
+                            write_json(CHAR_FILE, base_cfg)
                         # Keep EVERY source frame by default. Sampling is driven by
                         # the encoded S1 size, not by a fixed frame budget: only a
                         # GIF that would exceed 4 MiB gets sampled down.

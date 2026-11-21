@@ -1,5 +1,10 @@
 # 更新日志
 
+## v1.3.24
+
+- **修复导入 GIF 报 `Unknown theme`**：旧版本残留在 `local/character.json` 的主题 ID（如 `ocean`）会在上传时传给 `assets.generate()` 导致失败。现在统一用 `resolve_theme_id()` 校验并回退到当前存在的配色（优先清单 → 编译清单 → pink），同时把修正后的 ID 写回配置，后续上传不再复现。
+- 屏幕 UI 构建号 `0x131e`。
+
 ## v1.3.23
 
 - **修复单帧 GIF 素材编译报错**：`validate_character` 里的局部 `MAX_FRAMES` 导入遮蔽了全局上限，静态图/单帧 GIF 会抛 `UnboundLocalError`。现已移除局部导入并加回归测试。

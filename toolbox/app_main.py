@@ -253,6 +253,10 @@ def start_server(root: Path, port: int):
     """Import the studio module and serve in a background thread."""
     sys.path.insert(0, str(root / 'tools'))
     os.environ['RAINY75_ROOT'] = str(root)
+    # Firmware output follows the EXE the user launched, not the extracted
+    # payload under LOCALAPPDATA (see studio.sync_firmware_to_app).
+    exe_dir = Path(sys.executable).resolve().parent if frozen() else root
+    os.environ['RAINY75_EXE_DIR'] = str(exe_dir)
     clang = root / 'llvm' / 'bin' / 'clang.exe'
     if clang.exists():
         os.environ.setdefault('RAINY75_CLANG', str(clang))

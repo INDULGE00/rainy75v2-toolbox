@@ -81,9 +81,9 @@
 | `s1-full.gif` / `s1-lite.gif` / `s1-blank.gif` | 完整 / 精简 / 占位三档动画 |
 | `preview.png` | 320×172 效果图 |
 
-主题定制台编译成功后，新屏幕固件默认同时出现在**应用所在目录**（`rainy75v2-ips.bin` 与 `rainy75v2-ips.manifest.json`；exe 版即 `%LOCALAPPDATA%\Rainy75Toolbox\app`）和 `build/ips/`。`build/ips/` 是刷机向导「build/ 最新编译」的同步源，两者每次编译一起更新，换默认位置不会让向导读不到新固件。
+主题定制台编译成功后，新屏幕固件默认保存在**exe 同目录的「新编译固件」文件夹**（含 `rainy75v2-ips.bin`、`rainy75v2-ips.manifest.json` 与 `assets/`）。`build/ips/` 仍同步写入，作为刷机向导「build/ 最新编译」的读取源，两者每次编译一致。
 
-定制台「⑤ 应用到本机产物」底部有 **查看固件** 区块：列出应用目录、`build/ips`、`build/main`、`toolbox/firmware` 四处的文件与体积，按钮可直接用资源管理器打开对应文件夹。
+定制台「⑤ 应用到本机产物」底部有 **查看固件** 区块：列出「新编译固件（exe 同目录）」、`build/ips`、`build/main`、`toolbox/firmware` 四处的文件与体积，按钮可直接用资源管理器打开对应文件夹。
 
 换回自己的固件：定制台「应用并重新编译 IPS 固件」→ 运行 `python toolbox/snapshot.py`。
 

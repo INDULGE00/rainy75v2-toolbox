@@ -389,13 +389,25 @@ async function step3(){
  else log('等待超时：没在已授权设备里看到 36B0:3078。下一步的选择器里如果只有 3075，请稍等几秒再点一次④','warn');
  setProgress('屏幕已进入升级模式',1);
 }
-async function step4(){
+async function flashScreen(){
  let f;
  try{f=await FlashClient.connect(ipsPlan);}
  catch(e){throw connectHint(e,0x3078,'屏幕升级设备');}
  try{
   await f.flash((phase,p)=>setProgress('屏幕 · '+phase,p));
  }catch(e){await f.io.close().catch(()=>{});throw e;}
+}
+async function step4(){
+ try{
+  await flashScreen();
+ }catch(e){
+  // First flash after a fresh compile can race the device's re-enumeration.
+  // The IAP image is still intact after a refusal; wait and retry once with a
+  // fresh connection instead of leaving the user to click the step again.
+  log('屏幕第一次烧录失败（'+e.message+'），等设备稳定后自动重试一次…','warn');
+  await wait(1800);
+  await flashScreen();
+ }
  log('屏幕烧录与全字节回读校验完成，等待设备重启…');
  await wait(2500);
  // Prove which firmware is actually running: a stale image is the usual reason
@@ -407,9 +419,9 @@ async function step4(){
     new Promise((_,rej)=>setTimeout(()=>rej(Error('设备重新枚举超时')),8000))]);
   try{
    const tag=await check.queryIps(17);
-   log(tag===0x131c
-     ? `已确认屏幕正在运行 UI 1.3.22（build 0x${tag.toString(16)}）`
-     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x131c：可能刷的是旧固件`, tag===0x131c?'ok':'warn');
+   log(tag===0x131d
+     ? `已确认屏幕正在运行 UI 1.3.23（build 0x${tag.toString(16)}）`
+     : `屏幕回报的 UI 构建是 0x${tag.toString(16)}，不是本版 0x131d：可能刷的是旧固件`, tag===0x131d?'ok':'warn');
   }finally{await check.close().catch(()=>{});}
  }catch(e){log('烧录后回读构建号失败（不影响使用）：'+e.message,'warn');}
 }

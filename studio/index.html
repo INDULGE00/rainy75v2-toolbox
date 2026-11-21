@@ -173,7 +173,7 @@
 
 <section class="card">
   <h2>⑤ 应用到本机产物</h2>
-  <p class="hint">上传 GIF 后会<strong>自动重新编译 IPS 固件</strong>并生成配套 S1 素材。新固件默认同时放在<strong>应用所在目录</strong>与 <code>build/ips</code>：前者方便直接找到文件，后者供刷机向导「build/ 最新编译」读取，两边始终同步。之后到刷机向导刷一次屏幕并上传 S1，写入后即可直接显示。</p>
+  <p class="hint">上传 GIF 后会<strong>自动重新编译 IPS 固件</strong>并生成配套 S1 素材。新固件默认保存在<strong>exe 同目录的「新编译固件」文件夹</strong>；<code>build/ips</code> 仍同步写入，供刷机向导「build/ 最新编译」读取，两边始终一致。之后到刷机向导刷一次屏幕并上传 S1，写入后即可直接显示。</p>
   <div class="actions">
     <button id="assets-only" class="ghost">仅重新生成 S1 动画素材</button>
     <button id="apply" class="primary">应用并重新编译 IPS 固件</button>
@@ -184,7 +184,7 @@
   <div class="sep"></div>
   <p class="label">查看固件</p>
   <div class="actions fw-actions">
-    <button id="fw-open-app" class="ghost">打开应用目录（新固件默认位置）</button>
+    <button id="fw-open-app" class="ghost">打开新固件文件夹（exe 同目录）</button>
     <button id="fw-open-screen" class="ghost">打开屏幕固件文件夹（刷机向导同步源）</button>
     <button id="fw-open-main" class="ghost">打开主控固件文件夹</button>
     <button id="fw-open-snapshot" class="ghost">打开内置快照</button>

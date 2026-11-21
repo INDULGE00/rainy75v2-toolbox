@@ -92,7 +92,7 @@ def theme():
         c = {**shipped, **custom}.get(tid, {})
         return {'id': tid, 'name': c.get('name', tid), **{k: v for k, v in c.items() if k != 'name'}}
     except Exception:
-        return {'id': 'ocean', 'name': '深海蓝', 'background': '#eaf2fd', 'shell': '#a9c6ef',
+        return {'id': 'ocean', 'name': '大肥鱼', 'background': '#eaf2fd', 'shell': '#a9c6ef',
                 'ink': '#22418c', 'accent': '#3f7fd8', 'panel': '#f7fbff'}
 
 

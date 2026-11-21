@@ -3,7 +3,7 @@
   "target": "ips",
   "status": "experimental; hardware validation incomplete",
   "bytes": 507904,
-  "sha256": "475bf8b200f87e042dc0478995a46b3356641709c3babdd945da79bf5ca2e3e7",
+  "sha256": "3b79df66e103cf9222473d430a2767b15f9564091783ec63722b9e5df3f2d3ce",
   "stockSha256": "32defab7902e57eb972a577fc6cbf3a7e57bc772d59b99f11038370412b77f41",
   "applicationBase": 16384,
   "iapPid": 12408,

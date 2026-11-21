@@ -14,6 +14,9 @@ from urllib.parse import urlparse, parse_qs
 # RAINY75_ROOT lets the frozen single-file build point every path at the
 # extracted app directory instead of the (read-only) PyInstaller temp dir.
 ROOT = Path(os.environ.get('RAINY75_ROOT') or Path(__file__).resolve().parents[1]).resolve()
+# Where newly compiled firmware is delivered. The frozen app points this at the
+# directory containing the EXE; source runs keep using the repository root.
+OUTPUT_ROOT = Path(os.environ.get('RAINY75_EXE_DIR') or ROOT).resolve()
 sys.path.insert(0, str(ROOT / 'tools'))
 os.environ['RAINY75_STUDIO'] = '1'  # must be set before importing assets
 import assets  # noqa: E402
@@ -61,15 +64,14 @@ SETTINGS_FILE = LOCAL / 'settings.json'
 # Folder shortcuts for the "查看固件" buttons. Fixed keys only: the endpoint
 # never accepts a free-form path from the browser.
 FIRMWARE_TARGETS = {
-    'app': lambda: ROOT,
+    'app': lambda: APP_FIRMWARE_DIR,
     'screen': lambda: BUILD_IPS,
     'main': lambda: ROOT / 'build' / 'main',
     'snapshot': lambda: ROOT / 'toolbox' / 'firmware',
 }
 # Studio builds keep build/<target> as the canonical output (the flash wizard
-# reads it), then copy the finished firmware next to the app so it is the
-# default place users look. Copy names are target-specific to avoid the two
-# manifests overwriting each other in the app root.
+# reads it), then copy the finished firmware into a folder next to the EXE.
+APP_FIRMWARE_DIR = OUTPUT_ROOT / '新编译固件'
 APP_FIRMWARE_FILES = {
     'ips': [('rainy75v2-ips.bin', 'rainy75v2-ips.bin'),
             ('manifest.json', 'rainy75v2-ips.manifest.json')],
@@ -79,14 +81,19 @@ APP_FIRMWARE_FILES = {
 
 
 def sync_firmware_to_app(target):
-    """Copy a freshly built target into the app directory (never replaces build/)."""
+    """Copy a freshly built target next to the EXE (never replaces build/)."""
     src_dir = ROOT / 'build' / target
     copied = []
     for src_name, dst_name in APP_FIRMWARE_FILES.get(target, []):
-        src, dst = src_dir / src_name, ROOT / dst_name
+        src, dst = src_dir / src_name, APP_FIRMWARE_DIR / dst_name
         if src.is_file():
+            APP_FIRMWARE_DIR.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-            copied.append(dst.name)
+            copied.append(dst_name)
+    assets_dir = src_dir / 'assets'
+    if target == 'ips' and assets_dir.is_dir():
+        shutil.copytree(assets_dir, APP_FIRMWARE_DIR / 'assets', dirs_exist_ok=True)
+        copied.append('assets/')
     return copied
 
 
@@ -115,7 +122,8 @@ LIMITS = {
 }
 
 PRESETS = {
-    '深海蓝': {'background': '#eaf2fd', 'panel': '#f7fbff', 'shell': '#a9c6ef', 'ink': '#22418c', 'accent': '#3f7fd8'},
+    '大肥鱼': {'background': '#eaf2fd', 'panel': '#f7fbff', 'shell': '#a9c6ef', 'ink': '#22418c', 'accent': '#3f7fd8'},
+    '克劳德': {'background': '#f9eae2', 'panel': '#fcf5f1', 'shell': '#e29b7b', 'ink': '#6d4831', 'accent': '#da7e55'},
     '樱花粉': {'background': '#fff1f6', 'panel': '#fff8e9', 'shell': '#f0c1d5', 'ink': '#a35479', 'accent': '#d58eae'},
     '薄荷绿': {'background': '#edf8f2', 'panel': '#f8fff6', 'shell': '#b1d8c9', 'ink': '#366c61', 'accent': '#70a998'},
     '墨水灰': {'background': '#e9e9e7', 'panel': '#fafaf7', 'shell': '#b7b9b5', 'ink': '#343b37', 'accent': '#8c948b'},
@@ -294,9 +302,9 @@ def run_build(argv):
             try:
                 copied = sync_firmware_to_app(target)
                 if copied:
-                    output += '\n已同步到应用目录：' + '、'.join(copied)
+                    output += '\n已同步到 exe 同目录「新编译固件」：' + '、'.join(copied)
             except Exception as e:  # the build itself succeeded; don't fail it
-                output += f'\n同步到应用目录失败（build/ 仍可用于刷机向导）：{e}'
+                output += f'\n同步到 exe 同目录失败（build/ 仍可用于刷机向导）：{e}'
         return code, output.strip()
 
     if getattr(sys, 'frozen', False):
@@ -440,7 +448,10 @@ def validate_character(raw):
     if src:
         if not isinstance(src, str) or not src.startswith('local/') or '..' in src or not (ROOT / src).exists():
             raise ValueError('GIF 素材路径不合法')
-        from gifclip import durations_of, MAX_FRAMES
+        # MAX_FRAMES is the module-level safety cap (same value as gifclip).
+        # Importing it here would shadow the global and break static-image
+        # validation with UnboundLocalError.
+        from gifclip import durations_of
         total = len(durations_of(ROOT / src))
         sample = int(raw.get('gifSample') or 0) or None
         # gifSample is the exact number of frames the uploaded GIF was sampled

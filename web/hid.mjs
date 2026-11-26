@@ -89,7 +89,7 @@ export class AppClient{
    if(s.valid&&s.screenState===0x402&&s.screenTime&&Math.abs(timeDifference(s.mainSeconds,now))<=2&&Math.abs(timeDifference(s.screenTime.seconds,now))<=2)return s;
    await this.pause(1000);
   }
-  throw Error('校时指令已应答，但主控与屏幕读回未通过核对');
+  throw Error('校时指令已应答，但读回未通过核对（主控 '+s.mainSeconds+' / 屏幕 '+JSON.stringify(s.screenTime)+' / 屏幕状态 0x'+s.screenState.toString(16)+'）；请确认屏幕已刷入本版固件并保持 USB 连接');
  }
  async control(op){const id=++this.seq&65535;for(let i=0;;i++)try{return await this.request(op,id);}catch(e){if(e.status!==2||i>=30)throw e;await this.pause(50);}}
  async stock(sub,a=0,b=0,c=0,payload=[],timeout=8000){

@@ -717,6 +717,12 @@ $('#sb-icon-color-reset').onclick = () => {
   scheduleIconPreview();
   $('#sb-status').textContent = '已改回主题色（保存后生效）';
 };
+$('#sb-restore-time').onclick = async () => {
+  for (const el of document.querySelectorAll('input[name="sb-left"]')) el.checked = el.value === 'time';
+  schedulePreview();
+  $('#sb-status').textContent = '已切回时间显示，正在保存并应用到本机配置…';
+  $('#sb-save').click();
+};
 $('#sb-save').onclick = async () => {
   const cfg = readStatusbarForm();
   $('#sb-save').disabled = true;
